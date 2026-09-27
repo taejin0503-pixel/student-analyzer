@@ -4,9 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>대입 면접 준비 AI</title>
+<!-- PDF.js 라이브러리 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
   onload="pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';"
   onerror="console.error('pdf.js 로드 실패')"></script>
+<!-- Supabase SDK 추가 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg:#f7f7f5; --card:#ffffff; --text:#1c1c1a; --sub:#6b6b66;
@@ -103,6 +106,17 @@
 </style>
 </head>
 <body>
+
+<!-- 🔒 PIN 인증 모달 (PIN 미설정시 자동 숨김) -->
+<div id="pinModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:none; justify-content:center; align-items:center; z-index:99999;">
+  <div style="background:var(--card); padding:30px; border-radius:12px; text-align:center; max-width:320px; width:90%; border:1px solid var(--border);">
+    <h3 style="margin-top:0;">🔒 접속 비밀번호</h3>
+    <p style="font-size:13px; color:var(--sub);">보안을 위해 PIN 번호를 입력하세요.</p>
+    <input type="password" id="pinInput" placeholder="PIN 번호 입력" style="margin:15px 0;">
+    <button onclick="verifyPin()">확인</button>
+  </div>
+</div>
+
 <!-- 3색 형광펜 팝업 -->
 <div id="hlPopup">
   <div class="hl-color hl-c1" onclick="doHighlight('#ffe066')"></div>
@@ -111,7 +125,10 @@
 </div>
 
 <div class="wrap">
-  <h1>대입 면접 준비 AI</h1>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h1 style="margin:0;">대입 면접 준비 AI</h1>
+    <button class="ghost" onclick="fetchFromCloud()" style="font-size:12px; padding:6px 12px;">☁️ 결과 불러오기</button>
+  </div>
   <div class="sub">학생부·모집요강 기반 활동 분석 + 맞춤 모의면접. 모든 분석은 업로드한 자료 안에서만 이루어집니다.</div>
 
   <div class="steps" id="steps"></div>
@@ -119,6 +136,101 @@
 </div>
 
 <script>
+// 💡 Supabase 정보 및 PIN 번호 설정
+const SUPABASE_URL = 'https://ywwgsusgowabkxqhnlso.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3d2dzdXNnb3dhYmt4cWhubHNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0ODg3OTcsImV4cCI6MjEwNjA2NDc5N30.BQjNtpEfFbtxQvShtGuY7h2XljjvNBjo476g9UgQ_Y8'; // 복사한 anon public key 입력
+const MY_PIN = '1234'; // 비밀번호 사용 시예: '1234' (비워두면 비밀번호 없음)
+
+let supabaseClient = null;
+if (window.supabase && SUPABASE_KEY !== '여기에_복사한_ANON_KEY를_붙여넣으세요') {
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
+// PIN 인증 로직
+function checkPinOnStart() {
+  if (MY_PIN && sessionStorage.getItem('pinVerified') !== 'true') {
+    document.getElementById('pinModal').style.display = 'flex';
+  }
+}
+function verifyPin() {
+  const input = document.getElementById('pinInput').value;
+  if (input === MY_PIN) {
+    document.getElementById('pinModal').style.display = 'none';
+    sessionStorage.setItem('pinVerified', 'true');
+  } else {
+    alert('비밀번호가 일치하지 않습니다.');
+  }
+}
+window.addEventListener('DOMContentLoaded', checkPinOnStart);
+
+// 고유 식별 코드 생성 함수
+function generateUniqueCode() {
+  return 'STU-' + Math.floor(100000 + Math.random() * 900000);
+}
+
+// 클라우드 저장 함수
+async function saveToCloud() {
+  if (!supabaseClient) {
+    alert('Supabase Key가 설정되지 않았습니다. script 상단의 SUPABASE_KEY를 입력해주세요.');
+    return;
+  }
+  if (!state.analysis) {
+    alert('저장할 분석 결과가 없습니다. 먼저 분석을 진행해주세요.');
+    return;
+  }
+
+  const uniqueCode = generateUniqueCode();
+  const studentName = state.schools[0]?.name ? `${state.schools[0].name} 지원자` : "학생부 분석 결과";
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('student_records')
+      .insert([{
+        code: uniqueCode,
+        student_name: studentName,
+        result_json: { state: state }
+      }]);
+
+    if (error) throw error;
+
+    alert(`[클라우드 저장 완료]\n고유 식별 코드: ${uniqueCode}\n어느 기기에서든 우측 상단 '☁️ 결과 불러오기'를 통해 조회할 수 있습니다.`);
+  } catch (err) {
+    alert('클라우드 저장 실패: ' + err.message);
+  }
+}
+
+// 클라우드 불러오기 함수
+async function fetchFromCloud() {
+  if (!supabaseClient) {
+    alert('Supabase Key가 설정되지 않았습니다. script 상단의 SUPABASE_KEY를 입력해주세요.');
+    return;
+  }
+
+  const inputCode = prompt('저장된 고유 식별 코드를 입력하세요 (예: STU-123456):');
+  if (!inputCode) return;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('student_records')
+      .select('*')
+      .eq('code', inputCode.trim())
+      .single();
+
+    if (error || !data) {
+      alert('해당 식별 코드로 저장된 분석 결과를 찾을 수 없습니다.');
+      return;
+    }
+
+    if (data.result_json && data.result_json.state) {
+      state = data.result_json.state;
+      render();
+      alert(`${data.student_name || '학생'}의 분석 데이터를 성공적으로 불러왔습니다!`);
+    }
+  } catch (err) {
+    alert('불러오기 실패: ' + err.message);
+  }
+}
+
 const STEP_NAMES = ["API 키","학교 자료","생기부","성적표 확인","분석 결과","모의 면접"];
 let state = {
   step: 0,
@@ -160,24 +272,14 @@ async function callClaude({system, content, maxTokens=4000}){
   };
 
   let res;
-  const maxRetries = 5; // 최대 재시도 횟수
+  const maxRetries = 5;
   
   for(let i=0; i<=maxRetries; i++){
     res = await fetch(url, options);
-    
-    // 정상 응답이거나, 재시도해도 소용없는 에러(400, 401 등)면 루프 종료
     if(res.ok || (res.status !== 503 && res.status !== 500 && res.status !== 429)) break; 
-    
-    // 마지막 시도였다면 더 이상 기다리지 않음
     if(i === maxRetries) break;
 
-   // 지수 백오프 계산: 대기 시간을 4초, 8초, 16초... 로 증가
-    let waitTime = Math.pow(2, i) * 4000;
-    
-    // 동시에 여러 요청이 몰리지 않도록 약간의 무작위 시간(Jitter) 추가
-    waitTime += Math.random() * 2000;
-
-    // 429(요청 제한) 오류 발생 시 15초, 30초, 45초 이상 확실하게 쿨타임
+    let waitTime = Math.pow(2, i) * 4000 + Math.random() * 2000;
     if (res.status === 429) {
       waitTime = Math.max(waitTime, 15000 * (i + 1) + (Math.random() * 3000));
     }
@@ -209,13 +311,13 @@ function extractJSON(text){
   const m = cleaned.match(/\{[\s\S]*\}/);
   if(!m) throw new Error("JSON 형식을 찾지 못했습니다. (모델 응답: "+cleaned.slice(0,200)+")");
   try{
-    // 줄바꿈과 탭 등 문제성 제어 문자를 단순 공백으로 치환
     let safeJson = m[0].replace(/[\n\r\t]/g, " ");
     return JSON.parse(safeJson);
   }catch(e){
     throw new Error("JSON 파싱 실패: "+e.message+" (응답 앞부분: "+m[0].slice(0,200)+")");
   }
 }
+
 async function renderPdfPagesAsImages(pdf, maxPages=21){
   const images = [];
   const n = Math.min(pdf.numPages, maxPages);
@@ -407,7 +509,6 @@ async function onRecordPdf(ev){
   try{
     const {text, images} = await extractPdfContent(f);
     
-    // 자동 분류 로직 추가
     const parsedData = smartTextSplitter(text);
     
     state.record.g1 = parsedData.grade1;
@@ -425,11 +526,9 @@ async function onRecordPdf(ev){
   }
 }
 
-// 향상된 로컬 텍스트 분리 알고리즘 (정규식 기반)
 function smartTextSplitter(text) {
     let result = { grade1: "", grade2: "", grade3: "" };
     
-    // 실제 생기부 텍스트 패턴에 맞춰 '1학년', '2학년', '3학년' 키워드를 찾습니다.
     const regex1 = /(?:\[?1학년\]?|1학년\s*성적|1학년\s*교과)/g;
     const regex2 = /(?:\[?2학년\]?|2학년\s*성적|2학년\s*교과)/g;
     const regex3 = /(?:\[?3학년\]?|3학년\s*성적|3학년\s*교과)/g;
@@ -442,7 +541,6 @@ function smartTextSplitter(text) {
     const idx2 = matches2.length > 0 ? matches2[0] : -1;
     const idx3 = matches3.length > 0 ? matches3[0] : -1;
 
-    // 구간 자르기
     if (idx1 !== -1) {
         let endIdx = idx2 !== -1 ? idx2 : (idx3 !== -1 ? idx3 : text.length);
         result.grade1 = text.substring(idx1, endIdx).trim();
@@ -455,7 +553,6 @@ function smartTextSplitter(text) {
         result.grade3 = text.substring(idx3).trim();
     }
 
-    // 만약 패턴 매칭으로 찾지 못했다면 전체 텍스트를 원시적으로 분할 시도
     if (!result.grade1 && !result.grade2 && !result.grade3) {
         let parts = text.split(/(?=1학년|2학년|3학년)/);
         parts.forEach(part => {
@@ -641,6 +738,14 @@ function renderStep3(){
       ${c.suggestion? `<p><b>준비 대안:</b> ${c.suggestion}</p>`:""}`);
   }
 
+  // ☁️ 클라우드 저장 버튼 추가
+  if(a && !state.busy) {
+    html += card("☁️ 데이터 클라우드 저장", `
+      <p class="muted">분석한 내용과 진행 상태를 클라우드에 저장하면 고유 식별 코드가 발급됩니다. 이 코드로 다른 기기에서도 결과를 열람할 수 있습니다.</p>
+      <button onclick="saveToCloud()" style="width:100%;">☁️ 클라우드에 결과 저장하기</button>
+    `);
+  }
+
   if(!state.busy && !state.error){
     html += a && a.selfPerceptionCompare
       ? navButtons({nextLabel:"모의 면접 시작하기"})
@@ -665,7 +770,6 @@ async function runStage(label, instructionText, maxTokens, includeImages=true){
   return parsed;
 }
 
-// 강제 대기용 sleep 함수
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function runAnalysis(){
@@ -679,7 +783,7 @@ async function runAnalysis(){
       출력 JSON(다른 텍스트 없이 이것만): {"schools":[{"name":"학교명","priorityActivities":["활동명 - 이유(근거 포함)"],"ideaFitNote":"이 학교 인재상과 학생 활동의 연결점 요약"}]}`, 3000, true);
     state.analysis.schools = r.schools; render();
 
-    await sleep(4000); // 4초 대기 (429 에러 방지 핵심)
+    await sleep(4000);
 
     r = await runStage("전체 활동 S~C 등급 분류 중",
       `생기부에 나온 활동 전체(위 우선순위에 포함 안 된 것 포함)를 등급화하라.
@@ -687,14 +791,14 @@ async function runAnalysis(){
       출력 JSON(이것만): {"activityGrades":[{"grade":"S 또는 A+ 또는 A 또는 B+ 또는 B 또는 C","activity":"활동명(학년/과목)","reason":"등급 판단 근거"}]}`, 3500, true);
     state.analysis.activityGrades = r.activityGrades; render();
 
-    await sleep(4000); // 4초 대기
+    await sleep(4000);
 
     r = await runStage("성적 기반 강점/약점 분석 중",
       `제공된 성적(학년/학기별 등급·성취도·표준편차)을 바탕으로 상대적으로 강한 과목군과 약한 과목군을 정리하라. 근거가 되는 과목/등급/표준편차를 함께 밝혀라.
       출력 JSON(이것만): {"strengthsWeaknesses":{"strengths":["..."],"weaknesses":["..."]}}`, 1500, false);
     state.analysis.strengthsWeaknesses = r.strengthsWeaknesses; render();
 
-    await sleep(4000); // 4초 대기
+    await sleep(4000);
 
     r = await runStage("약점 보완 노력 탐색 중",
       `방금 찾은 약점은 다음과 같다: ${JSON.stringify(state.analysis.strengthsWeaknesses.weaknesses)}.
@@ -702,7 +806,7 @@ async function runAnalysis(){
       출력 JSON(이것만): {"weaknessImprovementEfforts":[{"weakness":"관련 약점","evidence":"생기부 내 보완 노력 근거","interviewTip":"면접에서 어떻게 활용할지 구체적 코멘트"}]}`, 1800, true);
     state.analysis.weaknessImprovementEfforts = r.weaknessImprovementEfforts; render();
 
-    await sleep(4000); // 4초 대기
+    await sleep(4000);
 
     r = await runStage("자기 인식 비교 중",
       `학생이 스스로 생각하는 자신의 강점(자료의 "학생이 생각하는 본인 강점" 항목)과, 지금까지 분석에서 확인된 실제 강점(${JSON.stringify(state.analysis.strengthsWeaknesses.strengths)} 및 상위 등급 활동들)을 비교하라.
@@ -744,9 +848,7 @@ Part 1에서 태그를 단 키워드들을 바탕으로 압박 질문을 1개씩
 async function generateQuestions(){
   state.busy = true; state.error=""; render();
   try{
-    // 분석에 사용된 전체 생기부 텍스트 병합
     const rawRecordText = `[1학년]\n${state.record.g1}\n\n[2학년]\n${state.record.g2}\n\n[3학년]\n${state.record.g3}`;
-    
     const content = [{type:"text", text: `[생기부 원본 텍스트]\n${rawRecordText}`}];
     
     const raw = await callClaude({system: buildInterviewSystemPrompt(), content, maxTokens:8192});
@@ -802,13 +904,11 @@ function renderStep4(){
     return;
   }
   
-  // 1. 하이라이팅된 생기부 본문 렌더링 (innerHTML 사용)
   let html = card("AI 생기부 핵심 분석 (형광펜)", `
     <div class="muted" style="margin-bottom:8px;">노랑: 개념어 / 초록: 수치·자료 / 빨강: 주장·결론</div>
     <div class="highlight-board">${state.interview.highlightedText}</div>
   `);
 
-  // 2. 압박 질문 채팅 UI 렌더링
   html += card("맞춤형 압박 모의 면접", `<p class="muted">위에서 칠해진 핵심 키워드를 바탕으로 생성된 압박 질문이야.</p>${state.error?`<div class="err">${state.error}</div>`:""}`);
   state.interview.questions.forEach((q,i)=>{
     const log = state.interview.log[i];
@@ -857,20 +957,17 @@ function onNext(){
 
 render();
 
-// --- 3색 형광펜 기능 이벤트 리스너 ---
+// 3색 형광펜 기능 이벤트 리스너
 document.addEventListener('mouseup', function(e) {
   const hlPopup = document.getElementById('hlPopup');
-  // 팝업 내부 클릭이면 무시
   if(hlPopup.contains(e.target)) return;
   
   const sel = window.getSelection();
-  // 입력창이 아닌 곳에서 텍스트를 드래그했을 때만 실행
   if(sel.toString().trim().length > 0 && !e.target.closest('input, textarea')) {
     const range = sel.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     
     hlPopup.style.display = 'flex';
-    // 드래그한 텍스트의 중앙 위쪽에 팝업 위치 지정
     hlPopup.style.top = (rect.top + window.scrollY - 45) + 'px';
     hlPopup.style.left = (rect.left + window.scrollX + (rect.width / 2) - 50) + 'px';
   } else {
@@ -878,7 +975,6 @@ document.addEventListener('mouseup', function(e) {
   }
 });
 
-// 형광펜 색상 적용 함수
 function doHighlight(color) {
   document.designMode = "on";
   document.execCommand("hiliteColor", false, color); 
@@ -886,7 +982,7 @@ function doHighlight(color) {
   document.designMode = "off";
   
   document.getElementById('hlPopup').style.display = 'none';
-  window.getSelection().removeAllRanges(); // 드래그 해제
+  window.getSelection().removeAllRanges();
 }
 </script>
 </body>
