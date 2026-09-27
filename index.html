@@ -277,7 +277,7 @@ function toGeminiParts(content){
   });
 }
 
-async function callClaude({system, content, maxTokens=4000}){
+async function callClaude({system, content, maxTokens=8192}){
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(state.apiKey)}`;
   const options = {
     method:"POST",
@@ -835,7 +835,7 @@ async function runAnalysis(){
   try{
     let r = await runStage("학교별 우선순위 활동 분석 중",
       `아래 자료를 보고, 지원 학교별로 인재상/모집요강에 가장 부합하는 생기부 활동을 최대 5개씩 뽑아라. 각 활동에는 이유(생기부 근거 포함)를 붙여라.
-      출력 JSON(다른 텍스트 없이 이것만): {"schools":[{"name":"학교명","priorityActivities":["활동명 - 이유(근거 포함)"],"ideaFitNote":"이 학교 인재상과 학생 활동의 연결점 요약"}]}`, 3000, true);
+      출력 JSON(다른 텍스트 없이 이것만): {"schools":[{"name":"학교명","priorityActivities":["활동명 - 이유(근거 포함)"],"ideaFitNote":"이 학교 인재상과 학생 활동의 연결점 요약"}]}`, 8192, true);
     state.analysis.schools = r.schools; render();
 
     await sleep(4000);
@@ -843,7 +843,7 @@ async function runAnalysis(){
     r = await runStage("전체 활동 S~C 등급 분류 중",
       `생기부에 나온 활동 전체(위 우선순위에 포함 안 된 것 포함)를 등급화하라.
       S=진로역량+전공적합성+심화연계를 종합했을 때 최상급 / A+=S급은 아니지만 A급보다 한 수 위 / A=학생 수준에서 제대로 이해했고 학년 범위를 크게 벗어나지 않음 / B+=보완하면 좋을 활동 / B=평이한 수준 / C=근거가 약하거나 형식적.
-      출력 JSON(이것만): {"activityGrades":[{"grade":"S 또는 A+ 또는 A 또는 B+ 또는 B 또는 C","activity":"활동명(학년/과목)","reason":"등급 판단 근거"}]}`, 3500, true);
+      출력 JSON(이것만): {"activityGrades":[{"grade":"S 또는 A+ 또는 A 또는 B+ 또는 B 또는 C","activity":"활동명(학년/과목)","reason":"등급 판단 근거"}]}`, 8192, true);
     state.analysis.activityGrades = r.activityGrades; render();
 
     await sleep(4000);
