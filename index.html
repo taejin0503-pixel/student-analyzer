@@ -156,8 +156,8 @@ mark.hl-red {
 <script>
 // 💡 Supabase 정보 및 PIN 번호 설정
 const SUPABASE_URL = 'https://ywwgsusgowabkxqhnlso.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3d2dzdXNnb3dhYmt4cWhubHNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0ODg3OTcsImV4cCI6MjEwNjA2NDc5N30.BQjNtpEfFbtxQvShtGuY7h2XljjvNBjo476g9UgQ_Y8'; // 복사한 anon public key 입력
-const MY_PIN = '1234'; // 비밀번호 사용 시예: '1234' (비워두면 비밀번호 없음)
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3d2dzdXNnb3dhYmt4cWhubHNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0ODg3OTcsImV4cCI6MjEwNjA2NDc5N30.BQjNtpEfFbtxQvShtGuY7h2XljjvNBjo476g9UgQ_Y8'; 
+const MY_PIN = '1234'; 
 
 let supabaseClient = null;
 if (window.supabase && SUPABASE_KEY !== '여기에_복사한_ANON_KEY를_붙여넣으세요') {
@@ -267,7 +267,7 @@ let state = {
 
 function saveKey(){ localStorage.setItem("ipa_key", state.apiKey); }
 
-const GEMINI_MODEL = "gemini-3.8-flash";
+const GEMINI_MODEL = "gemini-1.5-flash"; // 유효한 모델명으로 수정됨
 
 function toGeminiParts(content){
   return content.map(b=>{
@@ -581,6 +581,8 @@ function smartTextSplitter(text) {
     }
 
     return result;
+} // <--- 누락된 중괄호 복구
+
 async function onG3Images(ev){
   const files = Array.from(ev.target.files);
   if(!files.length) return;
