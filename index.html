@@ -937,16 +937,6 @@ ${rawRecordText}
   state.busy = false; render();
 }
 
-    const raw = await callClaude({system: buildInterviewSystemPrompt(), content, maxTokens:8192});
-    const parsed = extractJSON(raw);
-
-    state.interview.highlightedText = parsed.highlightedText || rawRecordText;
-    state.interview.questions = parsed.questions || [];
-    state.interview.idx = 0;
-  }catch(e){ state.error = e.message; }
-  state.busy = false; render();
-}
-
 async function submitAnswer(qIdx, answerText, isFollowup, followupParentIdx){
   if(!answerText.trim()) return;
   state.busy = true; render();
