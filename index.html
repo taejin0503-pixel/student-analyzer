@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>대입 면접 준비 AI</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
+  onload="pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';"
+  onerror="console.error('pdf.js 로드 실패')"></script>
+<style>
+  :root{
+    --bg:#f7f7f5; --card:#ffffff; --text:#1c1c1a; --sub:#6b6b66;
+    --accent:#2f5d50; --accent-light:#e7efec; --border:#e2e0da; --danger:#b3432b;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#161613; --card:#1f1f1c; --text:#eeeeea; --sub:#a3a39c;
+      --accent:#7fbfa6; --accent-light:#233330; --border:#333330; --danger:#e08469;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#161613; --card:#1f1f1c; --text:#eeeeea; --sub:#a3a39c;
+    --accent:#7fbfa6; --accent-light:#233330; --border:#333330; --danger:#e08469;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+    line-height:1.5;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px;}
+  h1{font-size:20px;margin:8px 0 4px;}
+  .sub{color:var(--sub);font-size:13px;margin-bottom:20px;}
+  .steps{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap;}
+  .step-dot{flex:1;min-width:60px;text-align:center;padding:7px 4px;border-radius:8px;font-size:12px;background:var(--card);border:1px solid var(--border);color:var(--sub);}
+  .step-dot.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .step-dot.done{background:var(--accent-light);color:var(--accent);border-color:var(--accent);}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px;}
+  .card h2{font-size:16px;margin:0 0 10px;}
+  label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px;}
+  input[type=text],input[type=password],textarea{
+    width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;
+    background:var(--bg);color:var(--text);font-size:14px;font-family:inherit;resize:vertical;
+  }
+  textarea{min-height:90px;}
+  textarea.big{min-height:160px;}
+  button{
+    background:var(--accent);color:#fff;border:none;padding:10px 16px;border-radius:8px;
+    font-size:14px;cursor:pointer;font-weight:600;
+  }
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent);}
+  button.danger{background:transparent;color:var(--danger);border:1px solid var(--danger);}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .file-btn{display:inline-block;}
+  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .thumbs img{width:64px;height:64px;object-fit:cover;border-radius:6px;border:1px solid var(--border);}
+  .thumb-wrap{position:relative;}
+  .thumb-wrap button{position:absolute;top:-6px;right:-6px;background:var(--danger);width:18px;height:18px;padding:0;border-radius:50%;font-size:11px;line-height:18px;}
+  .school-card{border:1px dashed var(--border);border-radius:10px;padding:12px;margin-top:10px;}
+  .muted{color:var(--sub);font-size:12px;}
+  .grade-badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;margin-right:6px;}
+  .g-S{background:#ffe1a8;color:#7a4a00;} .g-Ap{background:#d7e9ff;color:#154a8a;}
+  .g-A{background:#e2eefc;color:#1d5a94;} .g-Bp{background:#eee;color:#555;}
+  .g-B{background:#f0f0f0;color:#777;} .g-C{background:#f6f6f6;color:#999;}
+  .activity{border-bottom:1px solid var(--border);padding:10px 0;}
+  .activity:last-child{border-bottom:none;}
+  .loading{display:flex;align-items:center;gap:8px;color:var(--sub);font-size:13px;}
+  .progress-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;}
+  .progress-fill{height:100%;background:var(--accent);transition:width .4s ease;}
+  .spin{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  .chat-msg{padding:10px 12px;border-radius:10px;margin-bottom:8px;font-size:14px;}
+  .chat-q{background:var(--accent-light);}
+  .chat-a{background:var(--bg);border:1px solid var(--border);}
+  .chat-f{background:var(--card);border:1px dashed var(--accent);}
+  .err{color:var(--danger);font-size:13px;margin-top:8px;}
+  .school-tag{display:inline-block;background:var(--accent-light);color:var(--accent);padding:2px 8px;border-radius:6px;font-size:12px;margin:2px 4px 2px 0;}
+  details summary{cursor:pointer;font-size:13px;color:var(--accent);margin-top:6px;}
+  
+  /* 3색 형광펜 UI 스타일 */
+  #hlPopup {
+    position: absolute; display: none; background: #333; padding: 6px 8px;
+    border-radius: 8px; z-index: 9999; flex-direction: row; gap: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #444;
+  }
+  .hl-color {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    border: 2px solid transparent; transition: transform 0.2s;
+  }
+  .hl-color:hover { transform: scale(1.15); border-color: #fff; }
+  .hl-c1 { background: #ffe066; } /* 노랑 */
+  .hl-c2 { background: #ffa3c2; } /* 분홍 */
+  .hl-c3 { background: #8ce6cc; } /* 민트 */
+  
+  /* AI 자동 3색 형광펜 스타일 */
+  mark.hl-yellow { background-color: rgba(255, 242, 0, 0.5); padding: 2px 4px; border-radius: 4px; font-weight: bold; }
+  mark.hl-green { background-color: rgba(0, 255, 0, 0.4); padding: 2px 4px; border-radius: 4px; font-weight: bold; }
+  mark.hl-red { background-color: rgba(255, 51, 51, 0.4); color: white; padding: 2px 4px; border-radius: 4px; font-weight: bold; }
+  .highlight-board { background: var(--card); border: 1px solid var(--accent); padding: 15px; border-radius: 10px; margin-bottom: 20px; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<!-- 3색 형광펜 팝업 -->
+<div id="hlPopup">
+  <div class="hl-color hl-c1" onclick="doHighlight('#ffe066')"></div>
+  <div class="hl-color hl-c2" onclick="doHighlight('#ffa3c2')"></div>
+  <div class="hl-color hl-c3" onclick="doHighlight('#8ce6cc')"></div>
+</div>
+
+<div class="wrap">
+  <h1>대입 면접 준비 AI</h1>
+  <div class="sub">학생부·모집요강 기반 활동 분석 + 맞춤 모의면접. 모든 분석은 업로드한 자료 안에서만 이루어집니다.</div>
+
+  <div class="steps" id="steps"></div>
+  <div id="app"></div>
+</div>
+
+<script>
+const STEP_NAMES = ["API 키","학교 자료","생기부","성적표 확인","분석 결과","모의 면접"];
+let state = {
+  step: 0,
+  apiKey: localStorage.getItem("ipa_key") || "",
+  schools: [], 
+  record: { g1:"", g2:"", g3:"", grades:"", selfStrength:"", g3Images:[], autoImages:[], gradesTable:[] }, 
+  gradesBusy: false,
+  gradesError: "",
+  gradesTried: false,
+  analysis: null,
+  analysisProgress: {step:0, total:5, label:""},
+  interview: { questions: [], idx: -1, log: [] }, 
+  busy: false,
+  error: ""
+};
+
+function saveKey(){ localStorage.setItem("ipa_key", state.apiKey); }
+
+const GEMINI_MODEL = "gemini-3.8-flash";
+
+function toGeminiParts(content){
+  return content.map(b=>{
+    if(b.type==="text") return {text: b.text};
+    if(b.type==="image") return {inline_data:{mime_type: b.source.media_type, data: b.source.data}};
+    return {text: JSON.stringify(b)};
+  });
+}
+
+async function callClaude({system, content, maxTokens=4000}){
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(state.apiKey)}`;
+  const options = {
+    method:"POST",
+    headers:{ "content-type":"application/json" },
+    body: JSON.stringify({
+      system_instruction: { parts:[{text: system}] },
+      contents: [{ role:"user", parts: toGeminiParts(content) }],
+      generationConfig: { maxOutputTokens: 8192 }
+    })
+  };
+
+  let res;
+  const maxRetries = 5; // 최대 재시도 횟수
+  
+  for(let i=0; i<=maxRetries; i++){
+    res = await fetch(url, options);
+    
+    // 정상 응답이거나, 재시도해도 소용없는 에러(400, 401 등)면 루프 종료
+    if(res.ok || (res.status !== 503 && res.status !== 500 && res.status !== 429)) break; 
+    
+    // 마지막 시도였다면 더 이상 기다리지 않음
+    if(i === maxRetries) break;
+
+   // 지수 백오프 계산: 대기 시간을 4초, 8초, 16초... 로 증가
+    let waitTime = Math.pow(2, i) * 4000;
+    
+    // 동시에 여러 요청이 몰리지 않도록 약간의 무작위 시간(Jitter) 추가
+    waitTime += Math.random() * 2000;
+
+    // 429(요청 제한) 오류 발생 시 15초, 30초, 45초 이상 확실하게 쿨타임
+    if (res.status === 429) {
+      waitTime = Math.max(waitTime, 15000 * (i + 1) + (Math.random() * 3000));
+    }
+    
+    console.warn(`API 제한 또는 과부하(${res.status}). ${(waitTime/1000).toFixed(1)}초 후 재시도합니다... (${i+1}/${maxRetries}회차)`);
+    await new Promise(r => setTimeout(r, waitTime));
+  }
+
+  if(!res.ok){
+    const t = await res.text();
+    let detail = t.slice(0,300);
+    try{ detail = JSON.parse(t)?.error?.message || detail; }catch(e){}
+    throw new Error("API 오류 ("+res.status+"): "+detail);
+  }
+  const data = await res.json();
+  if(data.promptFeedback?.blockReason){
+    throw new Error("구글 세이프티 필터에 막혔습니다 (사유: "+data.promptFeedback.blockReason+"). 이미지·텍스트 분량을 줄이거나 개인정보 일부를 가려서 다시 시도해줘.");
+  }
+  const cand = (data.candidates||[])[0];
+  if(!cand) throw new Error("응답이 비어 있습니다 (원인 불명). 잠시 후 다시 시도해줘.");
+  if(cand.finishReason && cand.finishReason!=="STOP"){
+    throw new Error("응답이 끝까지 생성되지 못했습니다 (사유: "+cand.finishReason+"). 자료 양을 줄이거나 다시 시도해줘.");
+  }
+  return (cand.content?.parts||[]).filter(p=>p.text).map(p=>p.text).join("\n");
+}
+
+function extractJSON(text){
+  let cleaned = text.replace(/```json/gi,"").replace(/```/g,"").trim();
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if(!m) throw new Error("JSON 형식을 찾지 못했습니다. (모델 응답: "+cleaned.slice(0,200)+")");
+  try{
+    // 줄바꿈과 탭 등 문제성 제어 문자를 단순 공백으로 치환
+    let safeJson = m[0].replace(/[\n\r\t]/g, " ");
+    return JSON.parse(safeJson);
+  }catch(e){
+    throw new Error("JSON 파싱 실패: "+e.message+" (응답 앞부분: "+m[0].slice(0,200)+")");
+  }
+}
+async function renderPdfPagesAsImages(pdf, maxPages=21){
+  const images = [];
+  const n = Math.min(pdf.numPages, maxPages);
+  for(let i=1;i<=n;i++){
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({scale:1.3});
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d");
+    await page.render({canvasContext:ctx, viewport}).promise;
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+    images.push({data: dataUrl.split(",")[1], media:"image/jpeg"});
+  }
+  return images;
+}
+
+async function extractPdfContent(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  let text = "";
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(it=>it.str).join(" ") + "\n\n";
+  }
+  text = text.trim();
+  let images = [];
+  if(text.length < 50){
+    images = await renderPdfPagesAsImages(pdf);
+  }
+  return {text, images};
+}
+
+function fileToBase64(file){
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(r.result.split(",")[1]);
+    r.onerror = ()=>rej(new Error("파일 읽기 실패"));
+    r.readAsDataURL(file);
+  });
+}
+
+function render(){
+  renderSteps();
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+  [renderStep0, renderStep1, renderStep2, renderStepGrades, renderStep3, renderStep4][state.step]();
+}
+
+function renderSteps(){
+  const el = document.getElementById("steps");
+  el.innerHTML = STEP_NAMES.map((n,i)=>{
+    let cls = "step-dot";
+    if(i===state.step) cls+=" active"; else if(i<state.step) cls+=" done";
+    return `<div class="${cls}">${i+1}. ${n}</div>`;
+  }).join("");
+}
+
+function card(title, innerHtml){
+  return `<div class="card"><h2>${title}</h2>${innerHtml}</div>`;
+}
+
+function navButtons({backLabel="이전", nextLabel="다음", back=true, next=true, nextDisabled=false}={}){
+  return `<div class="row">
+    ${back?`<button class="ghost" onclick="goStep(${state.step-1})">${backLabel}</button>`:""}
+    ${next?`<button ${nextDisabled?"disabled":""} onclick="onNext()">${nextLabel}</button>`:""}
+  </div>`;
+}
+
+function goStep(i){ state.step = i; state.error=""; render(); }
+
+function renderStep0(){
+  document.getElementById("app").innerHTML = card("Google Gemini API 키", `
+    <p class="muted">이 앱은 GitHub Pages에 올라가는 정적 사이트라, 직접 서버를 두지 않고 각자 자신의 Google Gemini API 키로 분석을 실행합니다(무료 사용 가능).
+    키는 이 브라우저에만 저장되고(localStorage), 다른 어디로도 전송되지 않습니다. 키가 없다면
+    <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>에서 무료로 발급받을 수 있습니다.</p>
+    <p class="muted">⚠️ 무료 티어는 입력한 내용이 구글의 모델 개선(학습)에 쓰일 수 있습니다. 생기부 등 개인 정보가 담긴 자료를 넣는 만큼 참고해줘.</p>
+    <label>API Key</label>
+    <input type="password" id="apiKeyInput" placeholder="AIza..." value="${state.apiKey.replace(/"/g,'&quot;')}">
+    <div id="step0err" class="err"></div>
+    ${navButtons({back:false})}
+  `);
+}
+
+function schoolCardHtml(s, idx){
+  return `<div class="school-card" data-idx="${idx}">
+    <label>학교명</label><input type="text" value="${(s.name||"").replace(/"/g,'&quot;')}" oninput="state.schools[${idx}].name=this.value">
+    <label>지원 학과</label><input type="text" value="${(s.dept||"").replace(/"/g,'&quot;')}" oninput="state.schools[${idx}].dept=this.value">
+    <label>전형명</label><input type="text" value="${(s.admissionType||"").replace(/"/g,'&quot;')}" oninput="state.schools[${idx}].admissionType=this.value">
+    <label>인재상 (간단히 직접 입력, 모집요강에 있으면 비워도 됨)</label>
+    <textarea oninput="state.schools[${idx}].idealTraits=this.value">${s.idealTraits||""}</textarea>
+    <label>인재상 캡처 화면 (사진, 여러 장 가능 — 텍스트 입력 대신 또는 추가로)</label>
+    <input type="file" accept="image/*" multiple onchange="onIdealTraitImages(event, ${idx})">
+    <div class="thumbs" id="school${idx}traitThumbs"></div>
+    <label>모집요강 / 학생부종합전형 자료 PDF</label>
+    <input type="file" accept="application/pdf" onchange="onSchoolPdf(event, ${idx})">
+    <div class="muted" id="school${idx}pdfStatus">${s.guideText? "추출된 텍스트 "+s.guideText.length+"자 — 아래에서 확인/수정 가능": (s.guideImages&&s.guideImages.length? "글자를 못 읽는 PDF라 페이지 "+s.guideImages.length+"장을 이미지로 변환했어 — 분석 때 자동으로 함께 읽혀":"PDF를 올리면 텍스트를 자동 추출합니다")}</div>
+    <details><summary>추출된 텍스트 보기/수정</summary>
+      <textarea class="big" oninput="state.schools[${idx}].guideText=this.value">${s.guideText||""}</textarea>
+    </details>
+    <div class="row"><button class="danger" onclick="removeSchool(${idx})">이 학교 삭제</button></div>
+  </div>`;
+}
+
+function renderStep1(){
+  if(state.schools.length===0) state.schools.push({name:"",dept:"",admissionType:"",guideText:"",idealTraits:"",guideImages:[],idealTraitImages:[]});
+  document.getElementById("app").innerHTML = card("지원할 학교 정보", `
+    <p class="muted">학교별로 모집요강 PDF를 올리고, 학과·전형명을 입력해줘. 여러 학교를 추가할 수 있어.</p>
+    <div id="schoolsList">${state.schools.map(schoolCardHtml).join("")}</div>
+    <div class="row"><button class="ghost" onclick="addSchool()">+ 학교 추가</button></div>
+    <div id="step1err" class="err"></div>
+    ${navButtons()}
+  `);
+  state.schools.forEach((s,idx)=>renderTraitThumbs(idx));
+}
+
+function renderTraitThumbs(idx){
+  const el = document.getElementById("school"+idx+"traitThumbs");
+  if(!el) return;
+  const imgs = state.schools[idx].idealTraitImages||[];
+  el.innerHTML = imgs.map((img,i)=>`
+    <div class="thumb-wrap"><img src="data:${img.media};base64,${img.data}"><button onclick="removeTraitImage(${idx},${i})">×</button></div>
+  `).join("");
+}
+
+async function onIdealTraitImages(ev, idx){
+  const files = Array.from(ev.target.files);
+  if(!state.schools[idx].idealTraitImages) state.schools[idx].idealTraitImages = [];
+  for(const f of files){
+    const data = await fileToBase64(f);
+    state.schools[idx].idealTraitImages.push({data, media:f.type||"image/jpeg"});
+  }
+  renderTraitThumbs(idx);
+}
+
+function removeTraitImage(idx,i){ state.schools[idx].idealTraitImages.splice(i,1); renderTraitThumbs(idx); }
+function addSchool(){ state.schools.push({name:"",dept:"",admissionType:"",guideText:"",idealTraits:"",guideImages:[],idealTraitImages:[]}); render(); }
+function removeSchool(i){ state.schools.splice(i,1); if(state.schools.length===0) state.schools.push({name:"",dept:"",admissionType:"",guideText:"",idealTraits:"",guideImages:[],idealTraitImages:[]}); render(); }
+
+async function onSchoolPdf(ev, idx){
+  const f = ev.target.files[0]; if(!f) return;
+  const statusEl = document.getElementById("school"+idx+"pdfStatus");
+  statusEl.textContent = "텍스트 추출 중...";
+  try{
+    const {text, images} = await extractPdfContent(f);
+    state.schools[idx].guideText = text;
+    state.schools[idx].guideImages = images;
+    statusEl.textContent = text.length>0
+      ? "추출된 텍스트 "+text.length+"자 — 아래에서 확인/수정 가능"
+      : "글자를 못 읽는 PDF라 페이지 "+images.length+"장을 이미지로 변환했어 — 분석 때 자동으로 함께 읽혀";
+    render();
+  }catch(e){
+    statusEl.textContent = "추출 실패: "+e.message;
+  }
+}
+
+function renderStep2(){
+  document.getElementById("app").innerHTML = card("학생부(생기부) 정보", `
+    <p class="muted">생기부 PDF를 올리면 텍스트를 추출해서 아래 학년별 칸에 붙여넣을 수 있어. PDF에 3학년 내용이 빠져있으면
+    아래 "3학년 보완 자료(사진)"에 사진을 올려줘 — 사진은 그대로 AI에게 전달돼서 내용을 읽어들여.</p>
+    <label>생기부 PDF (전체)</label>
+    <input type="file" accept="application/pdf" onchange="onRecordPdf(event)">
+    <div class="muted" id="recordPdfStatus">${state.record.g1||state.record.g2||state.record.g3? "텍스트가 아래 칸에 있습니다": (state.record.autoImages.length? "글자를 못 읽는 PDF라 페이지 "+state.record.autoImages.length+"장을 이미지로 변환했어 — 분석 때 자동으로 함께 읽혀":"PDF를 올리면 아래 1학년 칸에 전체 텍스트가 채워집니다. 학년별로 직접 나눠서 확인해줘")}</div>
+
+    <label>1학년 내용</label><textarea class="big" oninput="state.record.g1=this.value">${state.record.g1}</textarea>
+    <label>2학년 내용</label><textarea class="big" oninput="state.record.g2=this.value">${state.record.g2}</textarea>
+    <label>3학년 내용 (PDF에 있는 만큼)</label><textarea class="big" oninput="state.record.g3=this.value">${state.record.g3}</textarea>
+
+    <label>3학년 보완 자료 (사진, 여러 장 가능)</label>
+    <input type="file" accept="image/*" multiple onchange="onG3Images(event)">
+    <div class="thumbs" id="g3thumbs"></div>
+
+    <label>성적 (학년/학기별 등급·성취도·표준편차 — 아는 대로, 표 형식이면 더 좋음)</label>
+    <textarea oninput="state.record.grades=this.value">${state.record.grades}</textarea>
+
+    <label>스스로 생각하는 나의 생기부 강점 (자유롭게 서술)</label>
+    <textarea oninput="state.record.selfStrength=this.value">${state.record.selfStrength}</textarea>
+
+    <div id="step2err" class="err"></div>
+    ${navButtons({nextLabel:"분석 시작"})}
+  `);
+  renderG3Thumbs();
+}
+
+async function onRecordPdf(ev){
+  const f = ev.target.files[0]; if(!f) return;
+  const statusEl = document.getElementById("recordPdfStatus");
+  statusEl.textContent = "텍스트 추출 중...";
+  try{
+    const {text, images} = await extractPdfContent(f);
+    
+    // 자동 분류 로직 추가
+    const parsedData = smartTextSplitter(text);
+    
+    state.record.g1 = parsedData.grade1;
+    state.record.g2 = parsedData.grade2;
+    state.record.g3 = parsedData.grade3;
+    
+    state.record.autoImages = images;
+    
+    statusEl.textContent = text.length>0
+      ? "추출 완료 ("+text.length+"자) — 학년별로 자동 분류되었습니다. 확인해줘"
+      : "이 PDF는 글자를 못 읽어서(스캔본 등) 페이지 "+images.length+"장을 이미지로 변환했어 — 분석 때 자동으로 함께 읽혀. 학년 구분은 아래 3학년 보완 사진처럼 직접 챙기지 않아도 되고, 전체를 함께 분석에 넣을게.";
+    render();
+  }catch(e){
+    statusEl.textContent = "추출 실패: "+e.message;
+  }
+}
+
+// 향상된 로컬 텍스트 분리 알고리즘 (정규식 기반)
+function smartTextSplitter(text) {
+    let result = { grade1: "", grade2: "", grade3: "" };
+    
+    // 실제 생기부 텍스트 패턴에 맞춰 '1학년', '2학년', '3학년' 키워드를 찾습니다.
+    const regex1 = /(?:\[?1학년\]?|1학년\s*성적|1학년\s*교과)/g;
+    const regex2 = /(?:\[?2학년\]?|2학년\s*성적|2학년\s*교과)/g;
+    const regex3 = /(?:\[?3학년\]?|3학년\s*성적|3학년\s*교과)/g;
+
+    const matches1 = [...text.matchAll(regex1)].map(m => m.index);
+    const matches2 = [...text.matchAll(regex2)].map(m => m.index);
+    const matches3 = [...text.matchAll(regex3)].map(m => m.index);
+
+    const idx1 = matches1.length > 0 ? matches1[0] : -1;
+    const idx2 = matches2.length > 0 ? matches2[0] : -1;
+    const idx3 = matches3.length > 0 ? matches3[0] : -1;
+
+    // 구간 자르기
+    if (idx1 !== -1) {
+        let endIdx = idx2 !== -1 ? idx2 : (idx3 !== -1 ? idx3 : text.length);
+        result.grade1 = text.substring(idx1, endIdx).trim();
+    }
+    if (idx2 !== -1) {
+        let endIdx = idx3 !== -1 ? idx3 : text.length;
+        result.grade2 = text.substring(idx2, endIdx).trim();
+    }
+    if (idx3 !== -1) {
+        result.grade3 = text.substring(idx3).trim();
+    }
+
+    // 만약 패턴 매칭으로 찾지 못했다면 전체 텍스트를 원시적으로 분할 시도
+    if (!result.grade1 && !result.grade2 && !result.grade3) {
+        let parts = text.split(/(?=1학년|2학년|3학년)/);
+        parts.forEach(part => {
+            if (part.includes("1학년")) result.grade1 += part + "\n";
+            else if (part.includes("2학년")) result.grade2 += part + "\n";
+            else if (part.includes("3학년")) result.grade3 += part + "\n";
+        });
+    }
+
+    return result;
+}
+
+async function onG3Images(ev){
+  const files = Array.from(ev.target.files);
+  for(const f of files){
+    const data = await fileToBase64(f);
+    state.record.g3Images.push({name:f.name, data, media:f.type||"image/jpeg"});
+  }
+  renderG3Thumbs();
+}
+
+function renderG3Thumbs(){
+  const el = document.getElementById("g3thumbs");
+  if(!el) return;
+  el.innerHTML = state.record.g3Images.map((img,i)=>`
+    <div class="thumb-wrap"><img src="data:${img.media};base64,${img.data}"><button onclick="removeG3Image(${i})">×</button></div>
+  `).join("");
+}
+
+function removeG3Image(i){ state.record.g3Images.splice(i,1); renderG3Thumbs(); }
+
+const GRADE_COLS = [
+  {key:"grade", label:"학년"}, {key:"semester", label:"학기"}, {key:"subject", label:"과목"},
+  {key:"rawScore", label:"원점수/평균"}, {key:"gradeLevel", label:"등급"},
+  {key:"stdDev", label:"표준편차"}, {key:"achievement", label:"성취도"}
+];
+
+function emptyGradeRow(){ return {grade:"",semester:"",subject:"",rawScore:"",gradeLevel:"",stdDev:"",achievement:""}; }
+
+async function extractGradesTable(){
+  state.gradesBusy = true; state.gradesError = ""; state.gradesTried = true; render();
+  try{
+    const content = buildAnalysisUserContent(
+      `아래 생기부/성적 자료에서 과목별 성적 정보를 표로 뽑아라. 학년·학기·과목마다 한 행씩 만들어라. 값을 모르면 빈 문자열로 둬라. 지어내지 마라.
+      출력 JSON(이것만): {"rows":[{"grade":"1학년","semester":"1학기","subject":"수학","rawScore":"","gradeLevel":"","stdDev":"","achievement":""}]}`, true);
+    const raw = await callClaude({system: ANALYSIS_PRINCIPLES, content, maxTokens:3000});
+    const parsed = extractJSON(raw);
+    state.record.gradesTable = (parsed.rows||[]).map(r=>({...emptyGradeRow(), ...r}));
+  }catch(e){
+    state.gradesError = e.message;
+  }
+  state.gradesBusy = false; render();
+}
+
+function renderStepGrades(){
+  const app = document.getElementById("app");
+  const hasSource = state.record.g1||state.record.g2||state.record.g3||state.record.grades||state.record.g3Images.length||state.record.autoImages.length;
+  if(!state.gradesTried && !state.gradesBusy && hasSource){
+    extractGradesTable();
+    return;
+  }
+  let inner = `<p class="muted">생기부/성적 자료에서 뽑은 성적표야. 잘못된 값이 있으면 직접 고쳐줘. 이 표가 이후 분석에 그대로 쓰여.</p>`;
+  if(state.gradesBusy){
+    inner += `<div class="loading"><div class="spin"></div> 성적표를 추출하는 중이야.</div>
+      <div class="row"><button class="ghost" onclick="goStep(state.step-1)">이전 단계로</button></div>`;
+    app.innerHTML = card("성적표 확인", inner);
+    return;
+  }
+  if(state.gradesError){
+    inner += `<div class="err">${state.gradesError}</div>
+      <div class="row"><button class="ghost" onclick="goStep(state.step-1)">이전</button><button onclick="state.gradesError='';extractGradesTable();">다시 추출</button><button class="ghost" onclick="state.gradesError='';state.gradesTried=true;render();">직접 입력할래</button></div>`;
+    app.innerHTML = card("성적표 확인", inner);
+    return;
+  }
+  inner += `<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr>${GRADE_COLS.map(c=>`<th style="text-align:left;padding:4px;border-bottom:1px solid var(--border);">${c.label}</th>`).join("")}<th></th></tr>
+    ${state.record.gradesTable.map((row,ri)=>`<tr>
+      ${GRADE_COLS.map(c=>`<td style="padding:2px;"><input type="text" style="width:100%;padding:5px;font-size:13px;" value="${(row[c.key]||"").toString().replace(/"/g,'&quot;')}" oninput="state.record.gradesTable[${ri}]['${c.key}']=this.value"></td>`).join("")}
+      <td><button class="danger" style="padding:4px 8px;" onclick="removeGradeRow(${ri})">×</button></td>
+    </tr>`).join("")}
+  </table></div>
+  <div class="row"><button class="ghost" onclick="addGradeRow()">+ 행 추가</button><button class="ghost" onclick="extractGradesTable()">다시 추출</button></div>`;
+  if(state.record.gradesTable.length===0){
+    inner += `<p class="muted">추출된 성적 정보가 없어. 행을 직접 추가하거나, 없으면 그냥 다음으로 넘어가도 돼(성적 기반 분석이 제한적으로 처리됨).</p>`;
+  }
+  inner += navButtons();
+  app.innerHTML = card("성적표 확인/수정", inner);
+}
+
+function addGradeRow(){ state.record.gradesTable.push(emptyGradeRow()); render(); }
+function removeGradeRow(i){ state.record.gradesTable.splice(i,1); render(); }
+
+const ANALYSIS_PRINCIPLES = `너는 대입 학생부종합전형 면접 준비를 돕는 분석가다. 반드시 지켜야 할 원칙:
+1) 오직 사용자가 제공한 생기부 텍스트/이미지와 학교 모집요강 텍스트/이미지 안에 있는 내용만 근거로 삼는다. 외부 지식으로 대학·학과 정보를 추측하거나 지어내지 않는다.
+2) 생기부에 없는 활동이나 성취를 만들어내지 않는다. 근거가 불충분하면 "생기부 내 근거 부족"이라고 명시한다.
+3) 최종 답변을 만들기 전에 스스로 각 주장이 어느 생기부 구절에 근거하는지 내부적으로 검증하고, 근거 없는 문문을 삭제한다(할루시네이션 자체 검증).
+4) 반드시 순수 JSON 객체 하나만 출력한다. 코드블록 기호나 설명 문장, 마크다운 코드펜스를 붙이지 않는다.`;
+
+function buildAnalysisUserContent(instructionText, includeImages=true){
+  const schoolsText = state.schools.map((s,i)=>
+    `[학교 ${i+1}] 이름:${s.name||"(미입력)"} / 학과:${s.dept||"(미입력)"} / 전형:${s.admissionType||"(미입력)"}\n인재상(직접입력):${s.idealTraits||"(없음)"}\n모집요강 텍스트:\n${(s.guideText||"(없음)").slice(0,15000)}`
+  ).join("\n\n---\n\n");
+
+  const gradesText = state.record.gradesTable.length
+    ? state.record.gradesTable.map(r=>`${r.grade} ${r.semester} ${r.subject}: 등급 ${r.gradeLevel||"-"}, 원점수/평균 ${r.rawScore||"-"}, 표준편차 ${r.stdDev||"-"}, 성취도 ${r.achievement||"-"}`).join("\n")
+    : (state.record.grades||"(입력 없음)");
+  const recordText = `[1학년]\n${state.record.g1||"(내용 없음)"}\n\n[2학년]\n${state.record.g2||"(내용 없음)"}\n\n[3학년(PDF)]\n${state.record.g3||"(내용 없음)"}\n\n[성적표(사용자 확인/수정본)]\n${gradesText}\n\n[학생이 생각하는 본인 강점]\n${state.record.selfStrength||"(입력 없음)"}`;
+
+  const hasAuto = state.record.autoImages.length>0;
+  const hasSchoolImgs = state.schools.some(s=>s.guideImages&&s.guideImages.length);
+  const content = [
+    {type:"text", text: (instructionText||"")+"\n\n=== 학교별 자료 ===\n"+schoolsText+"\n\n=== 생기부 자료 ===\n"+recordText +
+      (state.record.g3Images.length? "\n\n3학년 보완 자료 사진이 이어서 첨부됩니다. 사진 속 텍스트도 3학년 생기부 내용으로 취급해서 분석해줘.":"") +
+      (hasAuto? "\n\n생기부 PDF가 글자 인식이 안 되는 스캔본이라 페이지 이미지로 변환해 이어서 첨부합니다. 이 이미지들을 생기부 원문으로 취급해서 읽어줘.":"") +
+      (hasSchoolImgs? "\n\n일부 학교의 모집요강/인재상 자료도 이미지로 첨부됩니다. 어느 학교 자료인지는 이미지 순서와 위 학교 목록 순서를 대조해서 판단해줘.":"") +
+      (!includeImages? "":"") }
+  ];
+  if(includeImages){
+    state.record.g3Images.forEach(img=>{
+      content.push({type:"image", source:{type:"base64", media_type: img.media.startsWith("image/")?img.media:"image/jpeg", data: img.data}});
+    });
+    state.record.autoImages.forEach(img=>{
+      content.push({type:"image", source:{type:"base64", media_type: img.media, data: img.data}});
+    });
+    state.schools.forEach(s=>{
+      (s.guideImages||[]).forEach(img=>{
+        content.push({type:"image", source:{type:"base64", media_type: img.media, data: img.data}});
+      });
+      (s.idealTraitImages||[]).forEach(img=>{
+        content.push({type:"image", source:{type:"base64", media_type: img.media, data: img.data}});
+      });
+    });
+  }
+  return content;
+}
+
+function renderStep3(){
+  const app = document.getElementById("app");
+  if(state.analysis===null && !state.busy){
+    runAnalysis();
+  }
+  let html = "";
+
+  if(state.busy){
+    const p = state.analysisProgress;
+    const pct = Math.round((p.step/p.total)*100);
+    html += card(`분석 중 (${pct}%)`, `
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="loading" style="margin-top:10px;"><div class="spin"></div> ${p.label} (${p.step}/${p.total})</div>
+      <div class="row"><button class="ghost" onclick="goStep(state.step-1)">이전 단계로 (진행 중인 요청은 백그라운드에서 계속됨)</button></div>`);
+  }
+  if(state.error){
+    html += card("분석 실패", `<div class="err">${state.error}</div>
+      <div class="row"><button class="ghost" onclick="goStep(state.step-1)">이전</button><button onclick="retryAnalysis()">처음부터 다시 분석</button></div>`);
+    app.innerHTML = html; return;
+  }
+
+  const a = state.analysis;
+  if(a && a.schools) html += card("학교별 우선순위 활동 Top 5", a.schools.map(s=>`
+    <div class="activity"><b>${s.name}</b>
+      <div class="muted">${s.ideaFitNote||""}</div>
+      <ol>${(s.priorityActivities||[]).map(x=>`<li>${x}</li>`).join("")}</ol>
+    </div>`).join(""));
+
+  if(a && a.activityGrades) html += card("전체 활동 등급 정리", a.activityGrades.map(x=>{
+    const cls = {"S":"g-S","A+":"g-Ap","A":"g-A","B+":"g-Bp","B":"g-B","C":"g-C"}[x.grade]||"g-C";
+    return `<div class="activity"><span class="grade-badge ${cls}">${x.grade}</span><b>${x.activity}</b><div class="muted">${x.reason}</div></div>`;
+  }).join(""));
+
+  if(a && a.strengthsWeaknesses) html += card("성적 기반 강점 / 약점", `
+    <b>강점</b><ul>${(a.strengthsWeaknesses.strengths||[]).map(x=>`<li>${x}</li>`).join("")}</ul>
+    <b>약점</b><ul>${(a.strengthsWeaknesses.weaknesses||[]).map(x=>`<li>${x}</li>`).join("")}</ul>`);
+
+  if(a && a.weaknessImprovementEfforts) html += card("약점 보완 노력 → 면접 활용 포인트", a.weaknessImprovementEfforts.map(x=>`
+    <div class="activity"><b>${x.weakness}</b><div class="muted">근거: ${x.evidence}</div><div>${x.interviewTip}</div></div>`).join("") || "<p class='muted'>생기부 내에서 뚜렷한 보완 노력 근거를 찾지 못했어.</p>");
+
+  if(a && a.selfPerceptionCompare){
+    const c = a.selfPerceptionCompare;
+    html += card("자기 인식 vs 실제 생기부 강점 비교", `
+      <p><b>학생이 밝힌 강점:</b> ${c.studentBelieves||""}</p>
+      <p><b>실제 확인되는 강점:</b> ${c.actualFound||""}</p>
+      <p><b>차이:</b> ${c.gap||""}</p>
+      ${c.suggestion? `<p><b>준비 대안:</b> ${c.suggestion}</p>`:""}`);
+  }
+
+  if(!state.busy && !state.error){
+    html += a && a.selfPerceptionCompare
+      ? navButtons({nextLabel:"모의 면접 시작하기"})
+      : `<div class="row"><button class="ghost" onclick="goStep(state.step-1)">이전</button><button onclick="retryAnalysis()">분석 시작</button></div>`;
+  }
+  app.innerHTML = html;
+}
+
+function retryAnalysis(){
+  state.error = "";
+  state.analysis = null;
+  render();
+}
+
+async function runStage(label, instructionText, maxTokens, includeImages=true){
+  state.analysisProgress.label = label;
+  render();
+  const content = buildAnalysisUserContent(instructionText, includeImages);
+  const raw = await callClaude({system: ANALYSIS_PRINCIPLES, content, maxTokens});
+  const parsed = extractJSON(raw);
+  state.analysisProgress.step++;
+  return parsed;
+}
+
+// 강제 대기용 sleep 함수
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function runAnalysis(){
+  state.busy = true; state.error = "";
+  state.analysis = {schools:null, activityGrades:null, strengthsWeaknesses:null, weaknessImprovementEfforts:null, selfPerceptionCompare:null};
+  state.analysisProgress = {step:0, total:5, label:"학교별 우선순위 활동 분석 중"};
+  render();
+  try{
+    let r = await runStage("학교별 우선순위 활동 분석 중",
+      `아래 자료를 보고, 지원 학교별로 인재상/모집요강에 가장 부합하는 생기부 활동을 최대 5개씩 뽑아라. 각 활동에는 이유(생기부 근거 포함)를 붙여라.
+      출력 JSON(다른 텍스트 없이 이것만): {"schools":[{"name":"학교명","priorityActivities":["활동명 - 이유(근거 포함)"],"ideaFitNote":"이 학교 인재상과 학생 활동의 연결점 요약"}]}`, 3000, true);
+    state.analysis.schools = r.schools; render();
+
+    await sleep(4000); // 4초 대기 (429 에러 방지 핵심)
+
+    r = await runStage("전체 활동 S~C 등급 분류 중",
+      `생기부에 나온 활동 전체(위 우선순위에 포함 안 된 것 포함)를 등급화하라.
+      S=진로역량+전공적합성+심화연계를 종합했을 때 최상급 / A+=S급은 아니지만 A급보다 한 수 위 / A=학생 수준에서 제대로 이해했고 학년 범위를 크게 벗어나지 않음 / B+=보완하면 좋을 활동 / B=평이한 수준 / C=근거가 약하거나 형식적.
+      출력 JSON(이것만): {"activityGrades":[{"grade":"S 또는 A+ 또는 A 또는 B+ 또는 B 또는 C","activity":"활동명(학년/과목)","reason":"등급 판단 근거"}]}`, 3500, true);
+    state.analysis.activityGrades = r.activityGrades; render();
+
+    await sleep(4000); // 4초 대기
+
+    r = await runStage("성적 기반 강점/약점 분석 중",
+      `제공된 성적(학년/학기별 등급·성취도·표준편차)을 바탕으로 상대적으로 강한 과목군과 약한 과목군을 정리하라. 근거가 되는 과목/등급/표준편차를 함께 밝혀라.
+      출력 JSON(이것만): {"strengthsWeaknesses":{"strengths":["..."],"weaknesses":["..."]}}`, 1500, false);
+    state.analysis.strengthsWeaknesses = r.strengthsWeaknesses; render();
+
+    await sleep(4000); // 4초 대기
+
+    r = await runStage("약점 보완 노력 탐색 중",
+      `방금 찾은 약점은 다음과 같다: ${JSON.stringify(state.analysis.strengthsWeaknesses.weaknesses)}.
+      생기부 안에서 이 약점들을 스스로 보완하려 한 흔적(추가 탐구, 관련 독서, 방과후 활동, 세특 내 성찰 문구 등)을 찾아라. 근거가 없으면 억지로 만들지 말고 배열을 비워둬라.
+      출력 JSON(이것만): {"weaknessImprovementEfforts":[{"weakness":"관련 약점","evidence":"생기부 내 보완 노력 근거","interviewTip":"면접에서 어떻게 활용할지 구체적 코멘트"}]}`, 1800, true);
+    state.analysis.weaknessImprovementEfforts = r.weaknessImprovementEfforts; render();
+
+    await sleep(4000); // 4초 대기
+
+    r = await runStage("자기 인식 비교 중",
+      `학생이 스스로 생각하는 자신의 강점(자료의 "학생이 생각하는 본인 강점" 항목)과, 지금까지 분석에서 확인된 실제 강점(${JSON.stringify(state.analysis.strengthsWeaknesses.strengths)} 및 상위 등급 활동들)을 비교하라.
+      차이가 없으면 억지로 차이를 만들지 말고 gap에 "차이 없음"이라고만 써라.
+      출력 JSON(이것만): {"selfPerceptionCompare":{"studentBelieves":"학생이 밝힌 강점 요약","actualFound":"실제 확인되는 강점 요약","gap":"차이 여부와 내용, 없으면 '차이 없음'","suggestion":"차이가 있을 때만 준비 대안. 없으면 빈 문자열"}}`, 1200, false);
+    state.analysis.selfPerceptionCompare = r.selfPerceptionCompare; render();
+
+  }catch(e){
+    state.error = e.message;
+  }
+  state.busy = false; render();
+}
+
+function buildInterviewSystemPrompt(){
+  return `너는 대입 면접관이다. 반드시 아래 지시를 따르고 순수 JSON 객체만 출력하라.
+
+Part 1: 3색 형광펜 태그 삽입
+제공된 [생기부 원본 텍스트]의 내용을 토씨 하나 바꾸거나 요약하지 말고, 아래 3가지 기준에 해당하는 구절에만 HTML <mark> 태그를 감싸서 전체 텍스트를 출력하라.
+1. 개념어(노랑): 전공 관련 핵심 개념/전문 용어 -> <mark class="hl-yellow">추출한 개념어</mark>
+2. 수치·자료(초록): 통계, 측정 결과 등 수치화된 근거 -> <mark class="hl-green">추출한 수치</mark>
+3. 주장·결론(빨강): 학생이 도출한 결론, 시사점 -> <mark class="hl-red">추출한 주장</mark>
+*조건: 각 색상별로 최소 1개~최대 2개의 키워드만 엄선할 것.
+
+Part 2: 하이라이팅 기반 압박 질문 생성
+Part 1에서 태그를 단 키워드들을 바탕으로 압박 질문을 1개씩 생성하라.
+- [노랑/개념어]: 교과서 수준의 한 문장 정의를 묻는 질문
+- [초록/수치·자료]: 출처, 표본 크기, 계산 방식을 검증하는 질문
+- [빨강/주장·결론]: 결론에 대한 반대 논리 1개 제시 또는 한계점을 찌르는 질문
+
+출력 JSON 스키마 (이외의 텍스트 절대 금지):
+{
+  "highlightedText": "<mark> 태그가 적용된 생기부 원본 텍스트 전체",
+  "questions": [
+    {"question": "압박 질문 내용", "basedOn": "태그된 키워드와 색상 (예: 노랑 - 특정개념어)", "sampleAnswer": "면접관이 기대하는 모범 답변"}
+  ]
+}`;
+}
+
+async function generateQuestions(){
+  state.busy = true; state.error=""; render();
+  try{
+    // 분석에 사용된 전체 생기부 텍스트 병합
+    const rawRecordText = `[1학년]\n${state.record.g1}\n\n[2학년]\n${state.record.g2}\n\n[3학년]\n${state.record.g3}`;
+    
+    const content = [{type:"text", text: `[생기부 원본 텍스트]\n${rawRecordText}`}];
+    
+    const raw = await callClaude({system: buildInterviewSystemPrompt(), content, maxTokens:8192});
+    const parsed = extractJSON(raw);
+    
+    state.interview.highlightedText = parsed.highlightedText || rawRecordText;
+    state.interview.questions = parsed.questions || [];
+    state.interview.idx = 0;
+  }catch(e){ state.error = e.message; }
+  state.busy = false; render();
+}
+
+async function submitAnswer(qIdx, answerText, isFollowup, followupParentIdx){
+  if(!answerText.trim()) return;
+  state.busy = true; render();
+  try{
+    if(!isFollowup){
+      state.interview.log[qIdx] = {q: state.interview.questions[qIdx].question, a: answerText, followups: []};
+    } else {
+      const entry = state.interview.log[followupParentIdx];
+      entry.followups[entry.followups.length-1].a = answerText;
+    }
+    const entry = state.interview.log[isFollowup?followupParentIdx:qIdx];
+    const content = [{type:"text", text:
+      `원 질문: ${entry.q}\n학생 답변 기록(순서대로): ${JSON.stringify([{a:entry.a}, ...entry.followups])}\n
+      생기부 분석 요약: ${JSON.stringify(state.analysis)}\n
+      이 답변과 직접 관련 있고 주제에서 벗어나지 않는 추가질문이 필요한지 판단해줘. 필요 없으면 needFollowup:false.
+      JSON: {"needFollowup":true/false, "followupQuestion":"..."}`
+    }];
+    const raw = await callClaude({system: buildInterviewSystemPrompt(), content, maxTokens:800});
+    const parsed = extractJSON(raw);
+    if(parsed.needFollowup && parsed.followupQuestion){
+      entry.followups.push({q: parsed.followupQuestion, a:""});
+    }
+  }catch(e){ state.error = e.message; }
+  state.busy = false; render();
+}
+
+function renderStep4(){
+  const app = document.getElementById("app");
+  if(state.interview.questions.length===0 && !state.busy && !state.error){
+    generateQuestions();
+    return;
+  }
+  if(state.busy && state.interview.questions.length===0){
+    app.innerHTML = card("질문 생성 중", `<div class="loading"><div class="spin"></div> 생기부 원문을 분석하여 형광펜을 칠하고 압박 질문을 생성하는 중이야.</div>
+      <div class="row"><button class="ghost" onclick="goStep(state.step-1)">이전 단계로</button></div>`);
+    return;
+  }
+  if(state.error && state.interview.questions.length===0){
+    app.innerHTML = card("질문 생성 실패", `<div class="err">${state.error}</div>
+      <div class="row"><button class="ghost" onclick="goStep(state.step-1)">이전</button><button onclick="state.error='';generateQuestions();">다시 시도</button></div>`);
+    return;
+  }
+  
+  // 1. 하이라이팅된 생기부 본문 렌더링 (innerHTML 사용)
+  let html = card("AI 생기부 핵심 분석 (형광펜)", `
+    <div class="muted" style="margin-bottom:8px;">노랑: 개념어 / 초록: 수치·자료 / 빨강: 주장·결론</div>
+    <div class="highlight-board">${state.interview.highlightedText}</div>
+  `);
+
+  // 2. 압박 질문 채팅 UI 렌더링
+  html += card("맞춤형 압박 모의 면접", `<p class="muted">위에서 칠해진 핵심 키워드를 바탕으로 생성된 압박 질문이야.</p>${state.error?`<div class="err">${state.error}</div>`:""}`);
+  state.interview.questions.forEach((q,i)=>{
+    const log = state.interview.log[i];
+    html += `<div class="card">
+      <div class="chat-msg chat-q"><b>Q${i+1}.</b> ${q.question}<div class="muted">타겟 키워드: ${q.basedOn||""}</div></div>
+      <details><summary>예시 답변 보기</summary><div class="muted">${q.sampleAnswer||""}</div></details>
+      ${log? `<div class="chat-msg chat-a">${log.a}</div>` :
+        `<textarea id="ans${i}" placeholder="답변을 입력해줘"></textarea>
+         <div class="row"><button ${state.busy?"disabled":""} onclick="submitAnswer(${i}, document.getElementById('ans${i}').value, false)">답변 제출</button></div>`}
+      ${log && log.followups.map((f,fi)=>`
+        <div class="chat-msg chat-f"><b>추가질문.</b> ${f.q}</div>${f.a? `<div class="chat-msg chat-a">${f.a}</div>` :
+          `<textarea id="fans${i}_${fi}" placeholder="추가질문 답변"></textarea>
+           <div class="row"><button ${state.busy?"disabled":""} onclick="submitAnswer(${i}, document.getElementById('fans${i}_${fi}').value, true, ${i})">답변 제출</button></div>`}
+      `).join("") || ""}
+    </div>`;
+  });
+  html += navButtons({nextLabel:"완료", next:false});
+  app.innerHTML = html;
+}
+
+function onNext(){
+  state.error="";
+  if(state.step===0){
+    const key = document.getElementById("apiKeyInput").value.trim();
+    if(!key){ document.getElementById("step0err").textContent = "API 키를 입력해줘."; return; }
+    state.apiKey = key; saveKey();
+  }
+  if(state.step===1){
+    if(state.schools.every(s=>!s.name)){ document.getElementById("step1err").textContent = "학교를 최소 1개 입력해줘."; return; }
+  }
+  if(state.step===2){
+    if(!state.record.g1 && !state.record.g2 && !state.record.g3 && state.record.g3Images.length===0 && state.record.autoImages.length===0){
+      document.getElementById("step2err").textContent = "생기부 내용을 최소한 하나는 입력해줘.";
+      return;
+    }
+  }
+  if(state.step===3){
+    state.analysis = null; state.error="";
+  }
+  if(state.step===4){
+    state.interview.questions = [];
+  }
+  state.step++;
+  render();
+}
+
+render();
+
+// --- 3색 형광펜 기능 이벤트 리스너 ---
+document.addEventListener('mouseup', function(e) {
+  const hlPopup = document.getElementById('hlPopup');
+  // 팝업 내부 클릭이면 무시
+  if(hlPopup.contains(e.target)) return;
+  
+  const sel = window.getSelection();
+  // 입력창이 아닌 곳에서 텍스트를 드래그했을 때만 실행
+  if(sel.toString().trim().length > 0 && !e.target.closest('input, textarea')) {
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    
+    hlPopup.style.display = 'flex';
+    // 드래그한 텍스트의 중앙 위쪽에 팝업 위치 지정
+    hlPopup.style.top = (rect.top + window.scrollY - 45) + 'px';
+    hlPopup.style.left = (rect.left + window.scrollX + (rect.width / 2) - 50) + 'px';
+  } else {
+    hlPopup.style.display = 'none';
+  }
+});
+
+// 형광펜 색상 적용 함수
+function doHighlight(color) {
+  document.designMode = "on";
+  document.execCommand("hiliteColor", false, color); 
+  document.execCommand("backColor", false, color);   
+  document.designMode = "off";
+  
+  document.getElementById('hlPopup').style.display = 'none';
+  window.getSelection().removeAllRanges(); // 드래그 해제
+}
+</script>
+</body>
+</html>
