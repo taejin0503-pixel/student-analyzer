@@ -267,7 +267,7 @@ let state = {
 
 function saveKey(){ localStorage.setItem("ipa_key", state.apiKey); }
 
-const GEMINI_MODEL = "gemini-1.5-flash"; // 유효한 모델명으로 수정됨
+const GEMINI_MODEL = "gemini-3.8-flash"; // 유효한 모델명으로 수정됨
 
 function toGeminiParts(content){
   return content.map(b=>{
