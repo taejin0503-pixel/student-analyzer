@@ -11,6 +11,24 @@
 <!-- Supabase SDK 추가 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
+  mark.hl-yellow {
+  background-color: #fff176; /* 노랑 */
+  color: #000;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+mark.hl-green {
+  background-color: #a5d6a7; /* 초록 */
+  color: #000;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+mark.hl-red {
+  background-color: #ffab91; /* 빨강 */
+  color: #000;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
   :root{
     --bg:#f7f7f5; --card:#ffffff; --text:#1c1c1a; --sub:#6b6b66;
     --accent:#2f5d50; --accent-light:#e7efec; --border:#e2e0da; --danger:#b3432b;
@@ -563,15 +581,50 @@ function smartTextSplitter(text) {
     }
 
     return result;
-}
-
 async function onG3Images(ev){
   const files = Array.from(ev.target.files);
-  for(const f of files){
-    const data = await fileToBase64(f);
-    state.record.g3Images.push({name:f.name, data, media:f.type||"image/jpeg"});
+  if(!files.length) return;
+
+  state.busy = true; render(); // 텍스트 추출 중 로딩 표시
+  try {
+    if(!state.record.g3Images) state.record.g3Images = [];
+    
+    // 1. 올린 사진 파일 변환 및 저장
+    for(const f of files){
+      const data = await fileToBase64(f);
+      state.record.g3Images.push({name:f.name, data, media:f.type||"image/jpeg"});
+    }
+    
+    // 2. AI에게 사진 속 텍스트 추출 요청 (OCR)
+    const content = [
+      { type: "text", text: "첨부된 생활기록부 사진들의 글자를 오타 없이 텍스트로 그대로 모두 추출해서 출력해줘." }
+    ];
+    
+    state.record.g3Images.forEach(img => {
+      content.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: img.media || "image/jpeg",
+          data: img.data
+        }
+      });
+    });
+
+    const extractedText = await callClaude({
+      system: "당신은 이미지 속 생기부 글자를 정확히 읽어내는 OCR 도구입니다. 다른 설명 없이 오직 추출된 텍스트만 반환하세요.",
+      content,
+      maxTokens: 8192
+    });
+
+    // 3. 추출된 텍스트를 3학년 입력창(state.record.g3)에 자동 저장
+    state.record.g3 = (state.record.g3 ? state.record.g3 + "\n\n" : "") + extractedText.trim();
+
+  } catch(e) {
+    state.error = "텍스트 추출 실패: " + e.message;
   }
-  renderG3Thumbs();
+  state.busy = false;
+  render();
 }
 
 function renderG3Thumbs(){
@@ -848,12 +901,45 @@ Part 1에서 태그를 단 키워드들을 바탕으로 압박 질문을 1개씩
 async function generateQuestions(){
   state.busy = true; state.error=""; render();
   try{
-    const rawRecordText = `[1학년]\n${state.record.g1}\n\n[2학년]\n${state.record.g2}\n\n[3학년]\n${state.record.g3}`;
-    const content = [{type:"text", text: `[생기부 원본 텍스트]\n${rawRecordText}`}];
+    const rawRecordText = `[1학년]\n${state.record.g1 || ""}\n\n[2학년]\n${state.record.g2 || ""}\n\n[3학년]\n${state.record.g3 || ""}`;
     
+    const prompt = `
+[Part 1: 3색 형광펜 태그 삽입]
+원본 텍스트의 맥락을 유지한 상태에서, 아래 3가지 기준에 해당하는 단어나 구절을 찾아 지정된 HTML <mark> 태그로 감싸서 전체 텍스트를 highlightedText에 담아 출력하세요. (주의: 원본 텍스트의 내용은 토씨 하나 바꾸거나 요약하지 말고 그대로 출력해야 합니다.)
+
+1. 개념어 (노랑): 전공 관련 핵심 개념, 이론, 전문 용어 -> <mark class="hl-yellow">추출한 개념어</mark>
+2. 수치·자료 (초록): 통계, 표본 수, 측정 결과, 실험 데이터 등 수치화된 근거 -> <mark class="hl-green">추출한 수치 및 자료</mark>
+3. 주장·결론 (빨강): 학생이 도출한 결론, 가치 판단, 시사점 -> <mark class="hl-red">추출한 주장 및 결론</mark>
+*조건: 각 색상별로 최소 1개, 최대 2개의 키워드만 엄선하여 하이라이팅하세요.
+
+[Part 2: 하이라이팅 기반 압박 질문 생성]
+Part 1에서 태그를 단 키워드들을 바탕으로, 질문 3개를 생성해 questions 배열에 담아주세요.
+- [노랑/개념어 관련 질문]: 해당 용어의 정확한 '교과서 수준의 한 문장 정의'를 묻는 질문
+- [초록/수치·자료 관련 질문]: 해당 데이터의 '출처, 표본 크기, 혹은 계산 방식'을 검증하는 질문
+- [빨강/주장·결론 관련 질문]: 해당 결론에 대한 '반대 논리 1개'를 제시하거나 탐구의 '한계점'을 찌르는 질문
+
+[생기부 원문]
+${rawRecordText}
+`;
+
+    const raw = await callClaude({
+      system: buildInterviewSystemPrompt(),
+      content: [{ type: "text", text: prompt }],
+      maxTokens: 8192
+    });
+    
+    const parsed = extractJSON(raw);
+
+    state.interview.highlightedText = parsed.highlightedText || rawRecordText;
+    state.interview.questions = parsed.questions || [];
+    state.interview.idx = 0;
+  }catch(e){ state.error = e.message; }
+  state.busy = false; render();
+}
+
     const raw = await callClaude({system: buildInterviewSystemPrompt(), content, maxTokens:8192});
     const parsed = extractJSON(raw);
-    
+
     state.interview.highlightedText = parsed.highlightedText || rawRecordText;
     state.interview.questions = parsed.questions || [];
     state.interview.idx = 0;
