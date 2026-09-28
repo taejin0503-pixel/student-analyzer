@@ -924,24 +924,20 @@ async function runAnalysis(){
 function buildInterviewSystemPrompt(){
   return `너는 대입 면접관이다. 반드시 아래 지시를 따르고 순수 JSON 객체만 출력하라.
 
-Part 1: 3색 형광펜 태그 삽입
-제공된 [생기부 원본 텍스트]의 내용을 토씨 하나 바꾸거나 요약하지 말고, 아래 3가지 기준에 해당하는 구절에만 HTML <mark> 태그를 감싸서 전체 텍스트를 출력하라.
-1. 개념어(노랑): 전공 관련 핵심 개념/전문 용어 -> <mark class="hl-yellow">추출한 개념어</mark>
-2. 수치·자료(초록): 통계, 측정 결과 등 수치화된 근거 -> <mark class="hl-green">추출한 수치</mark>
-3. 주장·결론(빨강): 학생이 도출한 결론, 시사점 -> <mark class="hl-red">추출한 주장</mark>
-*조건: 각 색상별로 최소 1개~최대 2개의 키워드만 엄선할 것.
+[지시사항]
+제공된 생기부 원문에서 형광펜을 칠할 '정확한 키워드 단어/구절'을 원문에서 그대로 찾아 추출하고, 이를 기반으로 압박 질문 3개를 생성하라.
 
-Part 2: 하이라이팅 기반 압박 질문 생성
-Part 1에서 태그를 단 키워드들을 바탕으로 압박 질문을 1개씩 생성하라.
-- [노랑/개념어]: 교과서 수준의 한 문장 정의를 묻는 질문
-- [초록/수치·자료]: 출처, 표본 크기, 계산 방식을 검증하는 질문
-- [빨강/주장·결론]: 결론에 대한 반대 논리 1개 제시 또는 한계점을 찌르는 질문
+1. yellowKeywords: 전공 관련 핵심 개념어/전문 용어 (예: ["바루브르크효과"])
+2. greenKeywords: 수치, 통계, 측정 데이터 (예: ["34.8%"])
+3. redKeywords: 학생의 주요 주장, 결론 (예: ["가변적 조정이 최적의 대안"])
 
-출력 JSON 스키마 (이외의 텍스트 절대 금지):
+[출력 JSON 스키마 (다른 설명 절대 금지)]
 {
-  "highlightedText": "<mark> 태그가 적용된 생기부 원본 텍스트 전체",
+  "yellowKeywords": ["원문에 있는 정확한 단어"],
+  "greenKeywords": ["원문에 있는 정확한 단어"],
+  "redKeywords": ["원문에 있는 정확한 단어"],
   "questions": [
-    {"question": "압박 질문 내용", "basedOn": "태그된 키워드와 색상 (예: 노랑 - 특정개념어)", "sampleAnswer": "면접관이 기대하는 모범 답변"}
+    {"question": "압박 질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"}
   ]
 }`;
 }
@@ -951,34 +947,43 @@ async function generateQuestions(){
   try{
     const rawRecordText = `[1학년]\n${state.record.g1 || ""}\n\n[2학년]\n${state.record.g2 || ""}\n\n[3학년]\n${state.record.g3 || ""}`;
     
-    const prompt = `
-[Part 1: 3색 형광펜 태그 삽입]
-원본 텍스트의 맥락을 유지한 상태에서, 아래 3가지 기준에 해당하는 단어나 구절을 찾아 지정된 HTML <mark> 태그로 감싸서 전체 텍스트를 highlightedText에 담아 출력하세요. (주의: 원본 텍스트의 내용은 토씨 하나 바꾸거나 요약하지 말고 그대로 출력해야 합니다.)
+    if (!state.record.g1 && !state.record.g2 && !state.record.g3) {
+      throw new Error("생기부 텍스트가 없습니다. '3. 생기부' 단계에서 텍스트를 채워주세요.");
+    }
 
-1. 개념어 (노랑): 전공 관련 핵심 개념, 이론, 전문 용어 -> <mark class="hl-yellow">추출한 개념어</mark>
-2. 수치·자료 (초록): 통계, 표본 수, 측정 결과, 실험 데이터 등 수치화된 근거 -> <mark class="hl-green">추출한 수치 및 자료</mark>
-3. 주장·결론 (빨강): 학생이 도출한 결론, 가치 판단, 시사점 -> <mark class="hl-red">추출한 주장 및 결론</mark>
-*조건: 각 색상별로 최소 1개, 최대 2개의 키워드만 엄선하여 하이라이팅하세요.
+    const prompt = `[생기부 원문]\n${rawRecordText}\n\n위 생기부에서 형광펜을 칠할 단어/구절들과 압박 질문 3개를 추출해줘.`;
 
-[Part 2: 하이라이팅 기반 압박 질문 생성]
-Part 1에서 태그를 단 키워드들을 바탕으로, 질문 3개를 생성해 questions 배열에 담아주세요.
-- [노랑/개념어 관련 질문]: 해당 용어의 정확한 '교과서 수준의 한 문장 정의'를 묻는 질문
-- [초록/수치·자료 관련 질문]: 해당 데이터의 '출처, 표본 크기, 혹은 계산 방식'을 검증하는 질문
-- [빨강/주장·결론 관련 질문]: 해당 결론에 대한 '반대 논리 1개'를 제시하거나 탐구의 '한계점'을 찌르는 질문
-
-[생기부 원문]
-${rawRecordText}
-`;
-
+    // AI는 단어 목록과 질문만 짧게 추출 (MAX_TOKENS 에러 완전 방지)
     const raw = await callClaude({
       system: buildInterviewSystemPrompt(),
       content: [{ type: "text", text: prompt }],
-      maxTokens: 8192
+      maxTokens: 2048
     });
     
     const parsed = extractJSON(raw);
 
-    state.interview.highlightedText = parsed.highlightedText || rawRecordText;
+    // 원문 텍스트는 1글자도 변경하지 않고, AI가 찾아낸 키워드에만 자바스크립트로 형광펜 태그 삽입
+    const applyHighlight = (originalText) => {
+      if (!originalText) return "";
+      let result = originalText;
+
+      (parsed.yellowKeywords || []).forEach(kw => {
+        if (kw && kw.trim()) result = result.split(kw).join(`<mark class="hl-yellow">${kw}</mark>`);
+      });
+      (parsed.greenKeywords || []).forEach(kw => {
+        if (kw && kw.trim()) result = result.split(kw).join(`<mark class="hl-green">${kw}</mark>`);
+      });
+      (parsed.redKeywords || []).forEach(kw => {
+        if (kw && kw.trim()) result = result.split(kw).join(`<mark class="hl-red">${kw}</mark>`);
+      });
+
+      return result;
+    };
+
+    state.interview.highlightedG1 = applyHighlight(state.record.g1);
+    state.interview.highlightedG2 = applyHighlight(state.record.g2);
+    state.interview.highlightedG3 = applyHighlight(state.record.g3);
+
     state.interview.questions = parsed.questions || [];
     state.interview.idx = 0;
   }catch(e){ state.error = e.message; }
