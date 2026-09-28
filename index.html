@@ -1230,6 +1230,7 @@ async function speakQuestion(text) {
     const blob = await response.blob();
     const audioUrl = URL.createObjectURL(blob);
     const audio = new Audio(audioUrl);
+    audio.playbackRate = 1.15;
     audio.play();
   } catch (error) {
     console.error("TTS 오류:", error);
