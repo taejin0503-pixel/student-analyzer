@@ -12,45 +12,33 @@ export default async function handler(req, res) {
   const MODEL = "gemini-1.5-flash";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 
-  const contents = [];
+  // Gemini REST API 데이터 구조
+  const bodyPayload = {};
+
+  // 시스템 지침(System Instruction) 적용
   if (system) {
-    contents.push({ role: "user", parts: [{ text: `[시스템 지침]\n${system}` }] });
-    contents.push({ role: "model", parts: [{ text: "확인했습니다. 지시사항에 따라 답변하겠습니다." }] });
+    bodyPayload.system_instruction = {
+      parts: [{ text: system }]
+    };
   }
 
+  // 본문 요청 내용 처리
   if (Array.isArray(content)) {
-    content.forEach(item => {
-      if (item.type === "text") {
-        contents.push({ role: "user", parts: [{ text: item.text }] });
-      }
-    });
+    bodyPayload.contents = content;
+  } else {
+    bodyPayload.contents = [{ parts: [{ text: content }] }];
   }
 
   try {
-    const apiRes = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: contents,
-        generationConfig: {
-          maxOutputTokens: maxTokens,
-          temperature: 0.2
-        }
-      })
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyPayload)
     });
 
-    if (!apiRes.ok) {
-      const errData = await apiRes.json().catch(() => ({}));
-      return res.status(apiRes.status).json({ 
-        error: errData.error?.message || `Gemini API 오류 (${apiRes.status})` 
-      });
-    }
-
-    const data = await apiRes.json();
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    return res.status(200).json({ result: replyText });
-
+    const data = await response.json();
+    return res.status(200).json(data);
   } catch (error) {
-    return res.status(500).json({ error: error.message || '서버 통신 중 오류가 발생했습니다.' });
+    return res.status(500).json({ error: error.message });
   }
 }
