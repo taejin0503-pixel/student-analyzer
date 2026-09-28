@@ -10,6 +10,10 @@
   onerror="console.error('pdf.js 로드 실패')"></script>
 <!-- Supabase SDK 추가 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Markmap 라이브러리 추가 -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/markmap-view"></script>
+<script src="https://cdn.jsdelivr.net/npm/markmap-lib"></script>
 <style>
   mark.hl-yellow {
   background-color: #fff176; /* 노랑 */
@@ -846,6 +850,16 @@ function renderStep3(){
       <button onclick="saveToCloud()" style="width:100%;">☁️ 클라우드에 결과 저장하기</button>
     `);
   }
+  // 🧠 마인드맵 카드 추가
+  if(a && !state.busy) {
+    html += card("🧠 생기부 역량 마인드맵", `
+      <p class="muted">분석된 생기부 키워드와 학교별 연결고리를 마인드맵으로 시각화합니다.</p>
+      <div style="width:100%; height:380px; border:1px solid var(--border); border-radius:10px; background:var(--bg); overflow:hidden; margin-bottom:10px;">
+        <svg id="mindmapSvg" style="width:100%; height:100%;"></svg>
+      </div>
+      <button onclick="generateMindmap()" style="width:100%;">🧠 마인드맵 생성 / 새로고침</button>
+    `);
+  }
 
   if(!state.busy && !state.error){
     html += a && a.selfPerceptionCompare
@@ -854,7 +868,36 @@ function renderStep3(){
   }
   app.innerHTML = html;
 }
+async function generateMindmap() {
+  const svgEl = document.getElementById("mindmapSvg");
+  if (!svgEl) return;
+  svgEl.innerHTML = "<text x='50%' y='50%' text-anchor='middle' fill='var(--sub)'>AI가 마인드맵 구조를 그리는 중입니다...</text>";
 
+  try {
+    const prompt = `아래 생기부 분석 데이터를 바탕으로 핵심 키워드, 학년별 주요 활동, 강점을 마인드맵용 마크다운(Markdown list)으로 작성해줘.
+개요 형식(# 중심주제, ## 1차 카테고리, - 상세 활동)만 포함하고 다른 설명은 절대 출력하지 마.
+
+[분석 데이터]
+${JSON.stringify(state.analysis)}`;
+
+    const markdownText = await callClaude({
+      system: "너는 마인드맵 시각화를 위한 마크다운 변환기다. 코드블록 없이 오직 마크다운 목록(#, ##, -)만 반환하라.",
+      content: [{ type: "text", text: prompt }],
+      maxTokens: 2000
+    });
+
+    const cleanMd = markdownText.replace(/```markdown/gi, "").replace(/```/g, "").trim();
+    
+    // Markmap 렌더링 실행
+    const transformer = new window.markmap.Transformer();
+    const { root } = transformer.transform(cleanMd);
+    
+    svgEl.innerHTML = "";
+    window.markmap.Markmap.create(svgEl, { autoFit: true }, root);
+  } catch (e) {
+    alert("마인드맵 생성 실패: " + e.message);
+  }
+}
 function retryAnalysis(){
   state.error = "";
   state.analysis = null;
