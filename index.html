@@ -991,7 +991,7 @@ async function runAnalysis(){
   state.analysisProgress = {step:0, total:5, label:"학교별 우선순위 활동 분석 중"};
   render();
   try{
-    let r = await runStage("학교별 우선순위 활동 분석 중",
+   r = await runStage("학교별 우선순위 활동 분석 중",
       `아래 자료를 보고, 지원 학교별로 인재상/모집요강에 가장 부합하는 생기부 활동을 최대 5개씩 뽑아라. 각 활동에는 이유(생기부 근거 포함)를 붙여라.
       출력 JSON(다른 텍스트 없이 이것만): {"schools":[{"name":"학교명","priorityActivities":["활동명 - 이유(근거 포함)"],"ideaFitNote":"이 학교 인재상과 학생 활동의 연결점 요약"}]}`, 8192, true);
     state.analysis.schools = r.schools; render();
