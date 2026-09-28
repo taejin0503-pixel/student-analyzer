@@ -880,34 +880,91 @@ function renderStep3(){
   }
   app.innerHTML = html;
 }
+// 1. 마인드맵 카드 레이아웃 그려주는 헬퍼 함수
+function renderMindMap(mindmapData) {
+  if (!mindmapData || !mindmapData.nodes || mindmapData.nodes.length === 0) {
+    return '<div style="padding:20px; text-align:center; color:#6b7280;">분석된 마인드맵 데이터가 없습니다.</div>';
+  }
+
+  const themeColorMap = {};
+  (mindmapData.themes || []).forEach(t => {
+    themeColorMap[t.id] = { name: t.name, color: t.color || '#6b7280' };
+  });
+
+  const g1Nodes = mindmapData.nodes.filter(n => n.grade === 1);
+  const g2Nodes = mindmapData.nodes.filter(n => n.grade === 2);
+  const g3Nodes = mindmapData.nodes.filter(n => n.grade === 3);
+
+  const renderNode = (node) => {
+    const theme = themeColorMap[node.themeId] || { name: '기타', color: '#9ca3af' };
+    return `
+      <div id="node-${node.id}" style="
+        border-left: 5px solid ${theme.color};
+        background: #ffffff;
+        padding: 12px 14px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      ">
+        <div style="font-size: 11px; font-weight: bold; color: ${theme.color};">
+          🏷️ ${theme.name} (${node.subject})
+        </div>
+        <div style="font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 4px;">
+          ${node.title}
+        </div>
+      </div>
+    `;
+  };
+
+  const renderConnections = (connections) => {
+    if (!connections || connections.length === 0) return '';
+    return connections.map(c => `
+      <div style="
+        background: #f3f4f6; 
+        border: 1px dashed #9ca3af; 
+        padding: 8px 10px; 
+        border-radius: 6px; 
+        font-size: 12px; 
+        color: #374151;
+        margin: 8px 0;
+      ">
+        🔗 <b>과목 연계:</b> ${c.relation}
+      </div>
+    `).join('');
+  };
+
+  return `
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; background: #f8fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0;">
+      <div>
+        <h4 style="text-align: center; margin-bottom: 12px; color: #1e293b; font-size: 15px;">📌 1학년</h4>
+        ${g1Nodes.length > 0 ? g1Nodes.map(renderNode).join('') : '<div style="font-size:12px; color:#9ca3af; text-align:center;">기록 없음</div>'}
+      </div>
+      <div>
+        <h4 style="text-align: center; margin-bottom: 12px; color: #1e293b; font-size: 15px;">📌 2학년</h4>
+        ${g2Nodes.length > 0 ? g2Nodes.map(renderNode).join('') : '<div style="font-size:12px; color:#9ca3af; text-align:center;">기록 없음</div>'}
+      </div>
+      <div>
+        <h4 style="text-align: center; margin-bottom: 12px; color: #1e293b; font-size: 15px;">📌 3학년</h4>
+        ${g3Nodes.length > 0 ? g3Nodes.map(renderNode).join('') : '<div style="font-size:12px; color:#9ca3af; text-align:center;">기록 없음</div>'}
+        ${renderConnections(mindmapData.intraGradeConnections)}
+      </div>
+    </div>
+  `;
+}
+
+// 2. 기존 generateMindmap 교체 함수
 async function generateMindmap() {
-  const svgEl = document.getElementById("mindmapSvg");
-  if (!svgEl) return;
-  svgEl.innerHTML = "<text x='50%' y='50%' text-anchor='middle' fill='var(--sub)'>AI가 마인드맵 구조를 그리는 중입니다...</text>";
+  // 기존 mindmapSvg 및 mindmap-container ID 모두 대응
+  const container = document.getElementById('mindmapSvg') || document.getElementById('mindmap-container');
+  if (!container) return;
 
-  try {
-    const prompt = `아래 생기부 분석 데이터를 바탕으로 핵심 키워드, 학년별 주요 활동, 강점을 마인드맵용 마크다운(Markdown list)으로 작성해줘.
-개요 형식(# 중심주제, ## 1차 카테고리, - 상세 활동)만 포함하고 다른 설명은 절대 출력하지 마.
+  // 분석 결과 가져오기 (state.analysis 또는 lastAnalysisResult)
+  const analysisData = (typeof state !== 'undefined' && state.analysis) ? state.analysis : window.lastAnalysisResult;
 
-[분석 데이터]
-${JSON.stringify(state.analysis)}`;
-
-    const markdownText = await callClaude({
-      system: "너는 마인드맵 시각화를 위한 마크다운 변환기다. 코드블록 없이 오직 마크다운 목록(#, ##, -)만 반환하라.",
-      content: [{ type: "text", text: prompt }],
-      maxTokens: 2000
-    });
-
-    const cleanMd = markdownText.replace(/```markdown/gi, "").replace(/```/g, "").trim();
-    
-    // Markmap 렌더링 실행
-    const transformer = new window.markmap.Transformer();
-    const { root } = transformer.transform(cleanMd);
-    
-    svgEl.innerHTML = "";
-    window.markmap.Markmap.create(svgEl, { autoFit: true }, root);
-  } catch (e) {
-    alert("마인드맵 생성 실패: " + e.message);
+  if (analysisData && analysisData.mindmap) {
+    container.innerHTML = renderMindMap(analysisData.mindmap);
+  } else {
+    container.innerHTML = '<div style="padding:20px; text-align:center; color:#ef4444;">마인드맵 데이터가 없습니다. 먼저 생기부 분석을 진행해 주세요.</div>';
   }
 }
 function retryAnalysis(){
@@ -941,10 +998,28 @@ async function runAnalysis(){
 
     await sleep(4000);
 
-    r = await runStage("전체 활동 S~C 등급 분류 중",
+   r = await runStage("전체 활동 S~C 등급 분류 중",
       `생기부에 나온 활동 전체(위 우선순위에 포함 안 된 것 포함)를 등급화하라.
-      S=진로역량+전공적합성+심화연계를 종합했을 때 최상급 / A+=S급은 아니지만 A급보다 한 수 위 / A=학생 수준에서 제대로 이해했고 학년 범위를 크게 벗어나지 않음 / B+=보완하면 좋을 활동 / B=평이한 수준 / C=근거가 약하거나 형식적.
-      출력 JSON(이것만): {"activityGrades":[{"grade":"S 또는 A+ 또는 A 또는 B+ 또는 B 또는 C","activity":"활동명(학년/과목)","reason":"등급 판단 근거"}]}`, 8192, true);
+
+[기본 등급 정의]
+- S: 진로역량+전공적합성+심화연계를 종합했을 때 최상급
+- A+: S급은 아니지만 A급보다 한 수 위
+- A: 학생 수준에서 제대로 이해했고 학년 범위를 크게 벗어나지 않음
+- B+: 보완하면 좋을 활동
+- B: 평이한 수준
+- C: 근거가 약하거나 형식적
+
+[추가 평가 세부 규칙]
+1. 개별 절대평가: 정해진 등급별 개수나 비율(예: S급 필수 부여 등)을 적용하지 말고, 각 활동의 내용만을 개별적으로 검증하여 평가하라.
+2. S등급 부여 필수 조건:
+   - 교과 수업이나 수행평가에서 출발했더라도, 학생 본인이 호기심을 바탕으로 '직접 능동적으로 진행한 추가 심화 탐구/독서/실험/모델링'이 생기부에 명시된 경우만 S등급을 준다.
+   - 단지 수업이나 수행평가에 단순 참여/제출한 내용만 기록되어 있다면 절대로 S등급을 주지 마라 (최대 A+ 이하).
+3. 연계 및 확장 가산점 (높은 등급 적극 부여):
+   - [학년 간 심화 연계]: 이전 학년(예: 1학년)에서 진행한 탐구를 다음 학년(2, 3학년)에서 지속적으로 확장/심화한 활동
+   - [교과 간 융합 연계]: 다른 과목(예: 생명과학 활동을 수학/미적분과 연계)의 개념을 가져와 융합·확장하여 탐구한 활동
+   - 위와 같이 학년 간 확장성이 있거나 타 교과와 연계된 활동은 우수한 탐구 역량으로 인정하여 High Grade(S 또는 A+)를 부여하라.
+
+출력 JSON(이것만): {"activityGrades":[{"grade":"S 또는 A+ 또는 A 또는 B+ 또는 B 또는 C","activity":"활동명(학년/과목)","reason":"등급 판단 근거(능동성, 학년/교과 연계 여부 명시)"}]}`, 8192, true);
     state.analysis.activityGrades = r.activityGrades; render();
 
     await sleep(4000);
@@ -1016,12 +1091,23 @@ function buildInterviewSystemPrompt(){
   "questions": [
     {"stage": "1단계", "difficulty": "★☆☆☆☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
     {"stage": "2단계", "difficulty": "★★☆☆☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
-    {"stage": "3단계", "difficulty": "★★★★☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
-    {"stage": "4단계", "difficulty": "★★★★★", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
+    {"stage": "3단계", "difficulty": "★★★☆☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
+    {"stage": "4단계", "difficulty": "★★★★☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
     {"stage": "5단계", "difficulty": "★☆☆☆☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"}
-  ]
+  ],
+  "mindmap": {
+    "themes": [
+      { "id": "t1", "name": "주제명 (예: 로지스틱 모델 탐구)", "color": "#3b82f6" }
+    ],
+    "nodes": [
+      { "id": "n1", "grade": 1, "subject": "과목명", "title": "핵심 활동 내용", "themeId": "t1" },
+      { "id": "n2", "grade": 2, "subject": "과목명", "title": "핵심 활동 내용", "themeId": "t1" }
+    ],
+    "intraGradeConnections": [
+      { "from": "n3", "to": "n4", "relation": "3학년 국어 지문 주제를 3학년 미적분 수식으로 연계" }
+    ]
+  }
 }`;
-}
 
 async function generateQuestions(){
   state.busy = true; state.error=""; render();
