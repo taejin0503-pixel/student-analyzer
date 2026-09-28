@@ -979,12 +979,27 @@ async function runAnalysis(){
 function buildInterviewSystemPrompt(){
   return `너는 대입 면접관이다. 반드시 아래 지시를 따르고 순수 JSON 객체만 출력하라.
 
-[지시사항]
-제공된 생기부 원문에서 형광펜을 칠할 '정확한 키워드 단어/구절'을 원문에서 그대로 찾아 추출하고, 이를 기반으로 압박 질문 3개를 생성하라.
+[AI 면접관 종합 운영 및 난이도 제어 지침]
 
-1. yellowKeywords: 전공 관련 핵심 개념어/전문 용어 (예: ["바루브르크효과"])
-2. greenKeywords: 수치, 통계, 측정 데이터 (예: ["34.8%"])
-3. redKeywords: 학생의 주요 주장, 결론 (예: ["가변적 조정이 최적의 대안"])
+■ 1. 기본 면접 진행 규칙 (5단계 순차적 난이도 상승)
+전체 면접은 초기 지원자의 긴장을 풀고, 뒤로 갈수록 심화 학술 역량을 검증하도록 아래 5단계 순서로 진행하며, 반드시 질문 5개를 순차적으로 생성한다.
+- 1단계 (★☆☆☆☆): 긴장 완화, 아이스브레이킹, 기본 지원 동기 및 인성 질문
+- 2단계 (★★☆☆☆): 제출 서류(생기부/자소서) 기반 주요 활동 진위 및 기본 관심도 확인
+- 3단계 (★★★★☆): 제출 활동 내 핵심 학술 개념, 원리, 공식, 메커니즘 검증 (난이도 급상승)
+- 4단계 (★★★★★): 3번 답변에 대한 심화 꼬리질문, 비교 분석, 한계점 및 예외 대처 검증
+- 5단계 (★☆☆☆☆): 마지막 30초 발언 및 입학 후 학업/진로 포부
+
+■ 2. 질문 및 키워드 생성 규칙
+- 한 번에 **무조건 5개**의 질문을 1단계부터 5단계 난이도 순서대로 제시한다.
+- 제공된 생기부 원문에서 형광펜을 칠할 '정확한 키워드 단어/구절'을 원문에서 그대로 찾아 추출하라.
+  1. yellowKeywords: 전공 관련 핵심 개념어/전문 용어 (예: ["바루브르크효과"])
+  2. greenKeywords: 수치, 통계, 측정 데이터 (예: ["34.8%"])
+  3. redKeywords: 학생의 주요 주장, 결론 (예: ["가변적 조정이 최적의 대안"])
+
+[난이도별 질문 기준]
+- [하 / 1~2단계]: 기본 개념 확인, 단순 사실 관계, 경험/인성/협업 중심 질문
+- [중 / 3단계]: 활동 과정 및 이유, 적용 사례, 서류 진위 및 과목 관심도 질문
+- [상 / 4~5단계]: 학술적 원리/수식/메커니즘, 심화 비교, 꼬리질문, 한계점 및 예외 대처 질문
 
 [출력 JSON 스키마 (다른 설명 절대 금지)]
 {
@@ -992,7 +1007,11 @@ function buildInterviewSystemPrompt(){
   "greenKeywords": ["원문에 있는 정확한 단어"],
   "redKeywords": ["원문에 있는 정확한 단어"],
   "questions": [
-    {"question": "압박 질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"}
+    {"stage": "1단계", "difficulty": "★☆☆☆☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
+    {"stage": "2단계", "difficulty": "★★☆☆☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
+    {"stage": "3단계", "difficulty": "★★★★☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
+    {"stage": "4단계", "difficulty": "★★★★★", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"},
+    {"stage": "5단계", "difficulty": "★☆☆☆☆", "question": "질문 내용", "basedOn": "타겟 키워드", "sampleAnswer": "모범 답변"}
   ]
 }`;
 }
@@ -1006,12 +1025,12 @@ async function generateQuestions(){
       throw new Error("생기부 텍스트가 없습니다. '3. 생기부' 단계에서 텍스트를 채워주세요.");
     }
 
-    const prompt = `[생기부 원문]\n${rawRecordText}\n\n위 생기부에서 형광펜을 칠할 단어/구절들과 압박 질문 3개를 추출해줘.`;
+    const prompt = `[생기부 원문]\n${rawRecordText}\n\n위 생기부를 바탕으로지침에 맞추어 5단계 난이도별 질문 5개와 형광펜 키워드를 추출해줘.`;
 
     const raw = await callClaude({
       system: buildInterviewSystemPrompt(),
       content: [{ type: "text", text: prompt }],
-      maxTokens: 2048
+      maxTokens: 3000
     });
     
     const parsed = extractJSON(raw);
@@ -1076,7 +1095,7 @@ function renderStep4(){
     return;
   }
   if(state.busy && state.interview.questions.length===0){
-    app.innerHTML = card("질문 생성 중", `<div class="loading"><div class="spin"></div> 생기부 원문을 분석하여 형광펜을 칠하고 압박 질문을 생성하는 중이야.</div>
+    app.innerHTML = card("질문 생성 중", `<div class="loading"><div class="spin"></div> 5단계 난이도 제어 지침에 따라 5개의 맞춤형 면접 질문을 생성 중이야.</div>
       <div class="row"><button class="ghost" onclick="goStep(state.step-1)">이전 단계로</button></div>`);
     return;
   }
@@ -1124,13 +1143,15 @@ function renderStep4(){
     <div class="highlight-board">${state.interview?.highlightedText || state.interview?.highlightText || state.interview?.highlights || "형광펜 분석 데이터가 없습니다."}</div>
   `);
 
-  html += card("맞춤형 압박 모의 면접", `<p class="muted">위에서 칠해진 핵심 키워드를 바탕으로 생성된 압박 질문이야.</p>${state.error?`<div class="err">${state.error}</div>`:""}`);
+  html += card("5단계 난이도 맞춤형 모의 면접", `<p class="muted">1단계(아이스브레이킹)부터 5단계(학업/진로 포부)까지 순차적 난이도로 구성된 5개의 질문이야.</p>${state.error?`<div class="err">${state.error}</div>`:""}`);
   state.interview.questions.forEach((q,i)=>{
     const log = state.interview.log[i];
+    const stageBadge = q.stage && q.difficulty ? `<span style="font-size:12px; font-weight:bold; background:#3b82f6; color:white; padding:3px 8px; border-radius:6px; margin-right:8px;">${q.stage} (${q.difficulty})</span>` : '';
     html += `<div class="card">
       <div class="chat-msg chat-q" style="position: relative;">
+        <div style="margin-bottom: 6px;">${stageBadge}</div>
         <b>Q${i+1}.</b> ${q.question}
-        <div class="muted">타겟 키워드: ${q.basedOn||""}</div>
+        <div class="muted" style="margin-top:6px;">타겟 키워드: ${q.basedOn||""}</div>
         <button onclick="speakQuestion('${q.question.replace(/'/g, "\\'")}')" style="margin-top: 8px; padding: 4px 10px; font-size: 13px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">🔊 질문 듣기</button>
       </div>
       <details><summary>예시 답변 보기</summary><div class="muted">${q.sampleAnswer||""}</div></details>
