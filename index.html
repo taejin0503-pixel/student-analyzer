@@ -1082,12 +1082,18 @@ r = await runStage("전체 활동 S~C 등급 분류 중",
         "intraGradeConnections":[{"from":"n1","to":"n2","relation":"생기부에 명시된 과목 간 연결"}]
       }}`, 4096, true);
 
-    state.analysis.mindmap = r.mindmap || {
-      themes: [],
-      nodes: [],
-      intraGradeConnections: []
-    };
+       const mindmapResult =
+      r.mindmap && Array.isArray(r.mindmap.nodes) && r.mindmap.nodes.length > 0
+        ? r.mindmap
+        : r;
 
+    state.analysis.mindmap = {
+      themes: Array.isArray(mindmapResult.themes) ? mindmapResult.themes : [],
+      nodes: Array.isArray(mindmapResult.nodes) ? mindmapResult.nodes : [],
+      intraGradeConnections: Array.isArray(mindmapResult.intraGradeConnections)
+        ? mindmapResult.intraGradeConnections
+        : []
+    };
   }catch(e){
     state.error = e.message;
   }
