@@ -547,26 +547,32 @@ async function onRecordPdf(ev){
   try{
     let {text, images} = await extractPdfContent(f);
     
-    // 스캔본 PDF라 텍스트가 거의 안 뽑힌 경우, Gemini AI OCR로 이미지 속 글자 추출
+    // 스캔본 PDF라 텍스트 추출이 안 된 경우, 페이지별 순차 OCR 진행
     if(text.length < 50 && images.length > 0){
-      statusEl.textContent = `스캔본 PDF 감지! AI가 ${images.length}개 페이지에서 글자를 읽어오는 중입니다... (잠시만 기다려주세요)`;
+      let fullText = "";
       
-      const content = [
-        { type: "text", text: "첨부된 생활기록부 이미지들의 모든 글자를 오타 없이 텍스트로 그대로 읽어서 전부 출력해줘." }
-      ];
-      images.forEach(img => {
-        content.push({
-          type: "image",
-          source: { type: "base64", media_type: img.media || "image/jpeg", data: img.data }
-        });
-      });
+      for(let i = 0; i < images.length; i++){
+        statusEl.textContent = `스캔본 PDF 감지! AI가 글자를 읽어오는 중입니다... (${i + 1}/${images.length} 페이지)`;
+        
+        const content = [
+          { type: "text", text: `이 생기부 이미지(${i + 1}페이지) 속 모든 글자를 오타 없이 텍스트로 그대로 읽어서 전부 출력해줘.` },
+          {
+            type: "image",
+            source: { type: "base64", media_type: images[i].media || "image/jpeg", data: images[i].data }
+          }
+        ];
 
-      // Gemini API로 이미지 속 글자 텍스트 변환
-      text = await callClaude({
-        system: "당신은 이미지 속 생기부 글자를 정확히 읽어내는 OCR 도구입니다. 다른 설명 없이 오직 추출된 텍스트 전체만 반환하세요.",
-        content,
-        maxTokens: 8192
-      });
+        // 페이지 단위로 AI OCR 호출 (MAX_TOKENS 에러 방지)
+        const pageText = await callClaude({
+          system: "당신은 이미지 속 생기부 글자를 정확히 읽어내는 OCR 도구입니다. 다른 설명 없이 오직 추출된 텍스트만 반환하세요.",
+          content,
+          maxTokens: 4096
+        });
+
+        fullText += pageText.trim() + "\n\n";
+      }
+      
+      text = fullText;
     }
 
     // 학년별 텍스트 자동 분류 및 입력창 채우기
@@ -583,7 +589,7 @@ async function onRecordPdf(ev){
     statusEl.textContent = "추출 실패: " + e.message;
   }
 }
-
+  
 function smartTextSplitter(text) {
     let result = { grade1: "", grade2: "", grade3: "" };
     
