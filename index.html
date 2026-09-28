@@ -1133,10 +1133,17 @@ html += card("AI 생기부 핵심 분석 (형광펜)", `
   state.interview.questions.forEach((q,i)=>{
     const log = state.interview.log[i];
     html += `<div class="card">
-      <div class="chat-msg chat-q"><b>Q${i+1}.</b> ${q.question}<div class="muted">타겟 키워드: ${q.basedOn||""}</div></div>
+      <div class="chat-msg chat-q" style="position: relative;">
+        <b>Q${i+1}.</b> ${q.question}
+        <div class="muted">타겟 키워드: ${q.basedOn||""}</div>
+        <button onclick="speakQuestion('${q.question.replace(/'/g, "\\'")}')" style="margin-top: 8px; padding: 4px 10px; font-size: 13px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">🔊 질문 듣기</button>
+      </div>
       <details><summary>예시 답변 보기</summary><div class="muted">${q.sampleAnswer||""}</div></details>
-      ${log? `<div class="chat-msg chat-a">${log.a}</div>` :
-        `<textarea id="ans${i}" placeholder="답변을 입력해줘"></textarea>
+      ${log? `<div class="chat-msg chat-a">${log.a}</div>` : 
+        `<div style="margin: 6px 0;">
+           <button id="stt-btn-${i}" onclick="startSTT(${i})" type="button" style="padding: 6px 12px; font-size: 13px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">🎙️ 음성으로 답변하기</button>
+         </div>
+         <textarea id="ans${i}" placeholder="답변을 입력하거나 음성으로 말해주세요"></textarea>
          <div class="row"><button ${state.busy?"disabled":""} onclick="submitAnswer(${i}, document.getElementById('ans${i}').value, false)">답변 제출</button></div>`}
       ${log && log.followups.map((f,fi)=>`
         <div class="chat-msg chat-f"><b>추가질문.</b> ${f.q}</div>${f.a? `<div class="chat-msg chat-a">${f.a}</div>` :
@@ -1203,6 +1210,65 @@ function doHighlight(color) {
   
   document.getElementById('hlPopup').style.display = 'none';
   window.getSelection().removeAllRanges();
+}
+</script>
+  <script>
+// 1. TTS: 면접관 질문 읽어주기 (4~50대 아저씨 톤)
+function speakQuestion(text) {
+  if (!('speechSynthesis' in window)) {
+    alert("이 브라우저는 음성 출력(TTS)을 지원하지 않습니다.");
+    return;
+  }
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'ko-KR';
+  utterance.pitch = 0.75; // 음높이 낮춤 (중후한 톤)
+  utterance.rate = 0.9;   // 속도를 약간 늦춤
+
+  const voices = window.speechSynthesis.getVoices();
+  const maleVoice = voices.find(v => 
+    v.lang.includes('ko') && (v.name.includes('Male') || v.name.includes('InJoon') || v.name.includes('남성') || v.name.includes('Google 한국어'))
+  );
+  if (maleVoice) {
+    utterance.voice = maleVoice;
+  }
+
+  window.speechSynthesis.speak(utterance);
+}
+
+if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
+  speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+
+// 2. STT: 학생 음성 답변 입력받기
+function startSTT(index) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("이 브라우저는 음성 인식(STT)을 지원하지 않습니다. Chrome을 사용해 주세요.");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'ko-KR';
+  recognition.interimResults = false;
+
+  const targetTextarea = document.getElementById(`ans${index}`);
+  const btn = document.getElementById(`stt-btn-${index}`);
+
+  if (btn) btn.innerText = "🎙️ 듣는 중...";
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    if (targetTextarea) {
+      targetTextarea.value += (targetTextarea.value ? ' ' : '') + transcript;
+    }
+  };
+
+  recognition.onerror = () => alert("음성을 인식하지 못했습니다. 다시 시도해 주세요.");
+  recognition.onend = () => { if (btn) btn.innerText = "🎙️ 음성으로 답변하기"; };
+
+  recognition.start();
 }
 </script>
 </body>
