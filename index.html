@@ -1212,43 +1212,29 @@ function doHighlight(color) {
   window.getSelection().removeAllRanges();
 }
 </script>
-  <script>
-// 개선된 TTS: 진짜 남성 보이스 우선 감지 및 뭉개짐 방지
-function speakQuestion(text) {
-  if (!('speechSynthesis' in window)) {
-    alert("이 브라우저는 음성 출력(TTS)을 지원하지 않습니다.");
-    return;
+<script>
+// 무료 오픈 TTS 백엔드 API 연결
+async function speakQuestion(text) {
+  if (!text) return;
+  try {
+    const response = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+
+    if (!response.ok) {
+      throw new Error("음성 데이터를 불러오지 못했습니다.");
+    }
+
+    const blob = await response.blob();
+    const audioUrl = URL.createObjectURL(blob);
+    const audio = new Audio(audioUrl);
+    audio.play();
+  } catch (error) {
+    console.error("TTS 오류:", error);
+    alert("음성을 재생하는 데 실패했습니다.");
   }
-  window.speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'ko-KR';
-
-  const voices = window.speechSynthesis.getVoices();
-  
-  // 1. 한국어 남성 / 신경망(Natural/Neural) 고품질 보이스 우선 탐색
-  const maleVoice = voices.find(v => 
-    v.lang.includes('ko') && (
-      v.name.includes('InJoon') || 
-      v.name.includes('BongJin') || 
-      v.name.includes('Neural') || 
-      v.name.includes('Natural') || 
-      v.name.includes('Male') ||
-      v.name.includes('남성')
-    )
-  );
-
-  if (maleVoice) {
-    utterance.voice = maleVoice;
-    utterance.pitch = 0.95; // 남성 보이스일 때는 자연스러운 톤 유지
-    utterance.rate = 0.9;
-  } else {
-    // 남성 보이스가 없는 환경(크롬 기본 등)에서는 피치를 억지로 낮추지 않고 또박또박 읽기
-    utterance.pitch = 1.0;
-    utterance.rate = 0.95;
-  }
-
-  window.speechSynthesis.speak(utterance);
 }
 </script>
 </body>
