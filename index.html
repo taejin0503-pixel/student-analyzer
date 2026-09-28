@@ -1022,7 +1022,7 @@ r = await runStage("전체 활동 S~C 등급 분류 중",
 출력 JSON(이것만): {"activityGrades":[{"grade":"S 또는 A+ 또는 A 또는 B+ 또는 B 또는 C","activity":"활동명(학년/과목)","reason":"등급 판단 근거(능동성, 학년/교과 연계 여부 명시)"}]}`, 8192, true);
     state.analysis.activityGrades = r.activityGrades; render();
 
-    await sleep(4000);
+    await sleep(4000);  
 
     r = await runStage("성적 기반 강점/약점 분석 중",
       `제공된 성적(학년/학기별 등급·성취도·표준편차)을 바탕으로 상대적으로 강한 과목군과 약한 과목군을 정리하라. 근거가 되는 과목/등급/표준편차를 함께 밝혀라.
