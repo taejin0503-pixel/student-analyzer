@@ -1213,7 +1213,7 @@ function doHighlight(color) {
 }
 </script>
   <script>
-// 1. TTS: 면접관 질문 읽어주기 (4~50대 아저씨 톤)
+// 개선된 TTS: 진짜 남성 보이스 우선 감지 및 뭉개짐 방지
 function speakQuestion(text) {
   if (!('speechSynthesis' in window)) {
     alert("이 브라우저는 음성 출력(TTS)을 지원하지 않습니다.");
@@ -1223,52 +1223,32 @@ function speakQuestion(text) {
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = 'ko-KR';
-  utterance.pitch = 0.75; // 음높이 낮춤 (중후한 톤)
-  utterance.rate = 0.9;   // 속도를 약간 늦춤
 
   const voices = window.speechSynthesis.getVoices();
+  
+  // 1. 한국어 남성 / 신경망(Natural/Neural) 고품질 보이스 우선 탐색
   const maleVoice = voices.find(v => 
-    v.lang.includes('ko') && (v.name.includes('Male') || v.name.includes('InJoon') || v.name.includes('남성') || v.name.includes('Google 한국어'))
+    v.lang.includes('ko') && (
+      v.name.includes('InJoon') || 
+      v.name.includes('BongJin') || 
+      v.name.includes('Neural') || 
+      v.name.includes('Natural') || 
+      v.name.includes('Male') ||
+      v.name.includes('남성')
+    )
   );
+
   if (maleVoice) {
     utterance.voice = maleVoice;
+    utterance.pitch = 0.95; // 남성 보이스일 때는 자연스러운 톤 유지
+    utterance.rate = 0.9;
+  } else {
+    // 남성 보이스가 없는 환경(크롬 기본 등)에서는 피치를 억지로 낮추지 않고 또박또박 읽기
+    utterance.pitch = 1.0;
+    utterance.rate = 0.95;
   }
 
   window.speechSynthesis.speak(utterance);
-}
-
-if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
-  speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-}
-
-// 2. STT: 학생 음성 답변 입력받기
-function startSTT(index) {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    alert("이 브라우저는 음성 인식(STT)을 지원하지 않습니다. Chrome을 사용해 주세요.");
-    return;
-  }
-
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'ko-KR';
-  recognition.interimResults = false;
-
-  const targetTextarea = document.getElementById(`ans${index}`);
-  const btn = document.getElementById(`stt-btn-${index}`);
-
-  if (btn) btn.innerText = "🎙️ 듣는 중...";
-
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    if (targetTextarea) {
-      targetTextarea.value += (targetTextarea.value ? ' ' : '') + transcript;
-    }
-  };
-
-  recognition.onerror = () => alert("음성을 인식하지 못했습니다. 다시 시도해 주세요.");
-  recognition.onend = () => { if (btn) btn.innerText = "🎙️ 음성으로 답변하기"; };
-
-  recognition.start();
 }
 </script>
 </body>
