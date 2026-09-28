@@ -1078,7 +1078,7 @@ function renderStep4(){
   
   let html = card("AI 생기부 핵심 분석 (형광펜)", `
     <div class="muted" style="margin-bottom:8px;">노랑: 개념어 / 초록: 수치·자료 / 빨강: 주장·결론</div>
-    <div class="highlight-board">${state.interview.highlightedText}</div>
+    <div class="highlight-board">${state.interview?.highlightedText || state.interview?.highlightText || state.interview?.highlights || "형광펜 분석 데이터가 없습니다."}</div>
   `);
 
   html += card("맞춤형 압박 모의 면접", `<p class="muted">위에서 칠해진 핵심 키워드를 바탕으로 생성된 압박 질문이야.</p>${state.error?`<div class="err">${state.error}</div>`:""}`);
