@@ -543,24 +543,44 @@ function renderStep2(){
 async function onRecordPdf(ev){
   const f = ev.target.files[0]; if(!f) return;
   const statusEl = document.getElementById("recordPdfStatus");
-  statusEl.textContent = "텍스트 추출 중...";
+  statusEl.textContent = "PDF 분석 중...";
   try{
-    const {text, images} = await extractPdfContent(f);
+    let {text, images} = await extractPdfContent(f);
     
+    // 스캔본 PDF라 텍스트가 거의 안 뽑힌 경우, Gemini AI OCR로 이미지 속 글자 추출
+    if(text.length < 50 && images.length > 0){
+      statusEl.textContent = `스캔본 PDF 감지! AI가 ${images.length}개 페이지에서 글자를 읽어오는 중입니다... (잠시만 기다려주세요)`;
+      
+      const content = [
+        { type: "text", text: "첨부된 생활기록부 이미지들의 모든 글자를 오타 없이 텍스트로 그대로 읽어서 전부 출력해줘." }
+      ];
+      images.forEach(img => {
+        content.push({
+          type: "image",
+          source: { type: "base64", media_type: img.media || "image/jpeg", data: img.data }
+        });
+      });
+
+      // Gemini API로 이미지 속 글자 텍스트 변환
+      text = await callClaude({
+        system: "당신은 이미지 속 생기부 글자를 정확히 읽어내는 OCR 도구입니다. 다른 설명 없이 오직 추출된 텍스트 전체만 반환하세요.",
+        content,
+        maxTokens: 8192
+      });
+    }
+
+    // 학년별 텍스트 자동 분류 및 입력창 채우기
     const parsedData = smartTextSplitter(text);
     
-    state.record.g1 = parsedData.grade1;
+    state.record.g1 = parsedData.grade1 || text;
     state.record.g2 = parsedData.grade2;
     state.record.g3 = parsedData.grade3;
-    
     state.record.autoImages = images;
     
-    statusEl.textContent = text.length>0
-      ? "추출 완료 ("+text.length+"자) — 학년별로 자동 분류되었습니다. 확인해줘"
-      : "이 PDF는 글자를 못 읽어서(스캔본 등) 페이지 "+images.length+"장을 이미지로 변환했어 — 분석 때 자동으로 함께 읽혀. 학년 구분은 아래 3학년 보완 사진처럼 직접 챙기지 않아도 되고, 전체를 함께 분석에 넣을게.";
+    statusEl.textContent = "텍스트 추출 완료 (" + text.length + "자) — 아래 입력 칸에 자동으로 채워졌습니다!";
     render();
   }catch(e){
-    statusEl.textContent = "추출 실패: "+e.message;
+    statusEl.textContent = "추출 실패: " + e.message;
   }
 }
 
