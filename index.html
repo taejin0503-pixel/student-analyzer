@@ -983,7 +983,7 @@ async function generateQuestions(){
     state.interview.highlightedG1 = applyHighlight(state.record.g1);
     state.interview.highlightedG2 = applyHighlight(state.record.g2);
     state.interview.highlightedG3 = applyHighlight(state.record.g3);
-
+    state.interview.highlightedText = `[1학년]\n${state.interview.highlightedG1}\n\n[2학년]\n${state.interview.highlightedG2}\n\n[3학년]\n${state.interview.highlightedG3}`;
     state.interview.questions = parsed.questions || [];
     state.interview.idx = 0;
   }catch(e){ state.error = e.message; }
