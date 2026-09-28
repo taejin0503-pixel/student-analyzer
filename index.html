@@ -186,7 +186,7 @@ function generateUniqueCode() {
   return 'STU-' + Math.floor(100000 + Math.random() * 900000);
 }
 
-// 클라우드 저장 함수
+// 클라우드 저장 함수 (이미지 용량 제거 최적화)
 async function saveToCloud() {
   if (!supabaseClient) {
     alert('Supabase Key가 설정되지 않았습니다. script 상단의 SUPABASE_KEY를 입력해주세요.');
@@ -201,12 +201,32 @@ async function saveToCloud() {
   const studentName = state.schools[0]?.name ? `${state.schools[0].name} 지원자` : "학생부 분석 결과";
 
   try {
+    // 1. DB 전송용 데이터 생성: 모든 Base64 이미지 배열을 비워 저장 용량 99% 축소
+    const cleanRecord = {
+      ...state.record,
+      g3Images: [],
+      autoImages: []
+    };
+
+    const cleanSchools = (state.schools || []).map(s => ({
+      ...s,
+      guideImages: [],
+      idealTraitImages: []
+    }));
+
+    const cleanState = {
+      ...state,
+      record: cleanRecord,
+      schools: cleanSchools
+    };
+
+    // 2. 최적화된 cleanState를 Supabase에 저장
     const { data, error } = await supabaseClient
       .from('student_records')
       .insert([{
         code: uniqueCode,
         student_name: studentName,
-        result_json: { state: state }
+        result_json: { state: cleanState }
       }]);
 
     if (error) throw error;
