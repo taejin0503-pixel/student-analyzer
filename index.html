@@ -982,24 +982,31 @@ function buildInterviewSystemPrompt(){
 [AI 면접관 종합 운영 및 난이도 제어 지침]
 
 ■ 1. 기본 면접 진행 규칙 (5단계 순차적 난이도 상승)
-전체 면접은 초기 지원자의 긴장을 풀고, 뒤로 갈수록 심화 학술 역량을 검증하도록 아래 5단계 순서로 진행하며, 반드시 질문 5개를 순차적으로 생성한다.
+전체 면접은 초기 지원자의 긴장을 풀고, 뒤로 갈수록 심화 학술 역량을 검증하도록 아래 5단계 순서로 진행한다.
 - 1단계 (★☆☆☆☆): 긴장 완화, 아이스브레이킹, 기본 지원 동기 및 인성 질문
 - 2단계 (★★☆☆☆): 제출 서류(생기부/자소서) 기반 주요 활동 진위 및 기본 관심도 확인
 - 3단계 (★★★★☆): 제출 활동 내 핵심 학술 개념, 원리, 공식, 메커니즘 검증 (난이도 급상승)
 - 4단계 (★★★★★): 3번 답변에 대한 심화 꼬리질문, 비교 분석, 한계점 및 예외 대처 검증
 - 5단계 (★☆☆☆☆): 마지막 30초 발언 및 입학 후 학업/진로 포부
 
-■ 2. 질문 및 키워드 생성 규칙
-- 한 번에 **무조건 5개**의 질문을 1단계부터 5단계 난이도 순서대로 제시한다.
-- 제공된 생기부 원문에서 형광펜을 칠할 '정확한 키워드 단어/구절'을 원문에서 그대로 찾아 추출하라.
-  1. yellowKeywords: 전공 관련 핵심 개념어/전문 용어 (예: ["바루브르크효과"])
-  2. greenKeywords: 수치, 통계, 측정 데이터 (예: ["34.8%"])
-  3. redKeywords: 학생의 주요 주장, 결론 (예: ["가변적 조정이 최적의 대안"])
+■ 2. 동적 추가 질문 생성 규칙 (버튼 클릭 / 명령어 입력 시)
+사용자가 추가 질문을 요청하거나 난이도를 지정할 경우, AI는 반드시 아래 규격에 맞추어 정확히 5개의 질문을 번호(1~5)를 붙여 생성한다.
 
 [난이도별 질문 기준]
 - [하 / 1~2단계]: 기본 개념 확인, 단순 사실 관계, 경험/인성/협업 중심 질문
 - [중 / 3단계]: 활동 과정 및 이유, 적용 사례, 서류 진위 및 과목 관심도 질문
 - [상 / 4~5단계]: 학술적 원리/수식/메커니즘, 심화 비교, 꼬리질문, 한계점 및 예외 대처 질문
+
+[생성 조건]
+- 요청에 맞춰 한 번에 무조건 5개의 질문을 제시한다.
+- 특정 난이도가 지정되면 5개 질문 전체를 해당 난이도로 맞추고, 지정이 없으면 [중~상] 수준으로 구성한다.
+- 모든 질문은 지원자의 생기부 정보 및 직전 대화 맥락과 긴밀히 연계되어야 한다.
+
+[키워드 추출 지침]
+제공된 생기부 원문에서 형광펜을 칠할 '정확한 키워드 단어/구절'을 원문에서 그대로 찾아 추출하라.
+1. yellowKeywords: 전공 관련 핵심 개념어/전문 용어 (예: ["바루브르크효과"])
+2. greenKeywords: 수치, 통계, 측정 데이터 (예: ["34.8%"])
+3. redKeywords: 학생의 주요 주장, 결론 (예: ["가변적 조정이 최적의 대안"])
 
 [출력 JSON 스키마 (다른 설명 절대 금지)]
 {
@@ -1025,7 +1032,7 @@ async function generateQuestions(){
       throw new Error("생기부 텍스트가 없습니다. '3. 생기부' 단계에서 텍스트를 채워주세요.");
     }
 
-    const prompt = `[생기부 원문]\n${rawRecordText}\n\n위 생기부를 바탕으로지침에 맞추어 5단계 난이도별 질문 5개와 형광펜 키워드를 추출해줘.`;
+    const prompt = `[생기부 원문]\n${rawRecordText}\n\n위 생기부를 바탕으로 지침의 기본 면접 진행 규칙 1~5단계에 따라 질문 5개와 형광펜 키워드를 추출해줘.`;
 
     const raw = await callClaude({
       system: buildInterviewSystemPrompt(),
@@ -1062,6 +1069,26 @@ async function generateQuestions(){
   state.busy = false; render();
 }
 
+async function generateMoreQuestions(level){
+  state.busy = true; render();
+  try {
+    const rawRecordText = `[1학년]\n${state.record.g1 || ""}\n\n[2학년]\n${state.record.g2 || ""}\n\n[3학년]\n${state.record.g3 || ""}`;
+    const prompt = `[생기부 원문]\n${rawRecordText}\n\n[요청] 지침의 '■ 2. 동적 추가 질문 생성 규칙'에 따라 난이도 [${level}] 수준에 맞추어 정확히 5개의 추가 면접 질문을 생성해줘.`;
+
+    const raw = await callClaude({
+      system: buildInterviewSystemPrompt(),
+      content: [{ type: "text", text: prompt }],
+      maxTokens: 2500
+    });
+
+    const parsed = extractJSON(raw);
+    if(parsed.questions && parsed.questions.length > 0){
+      state.interview.questions = [...state.interview.questions, ...parsed.questions];
+    }
+  } catch(e) { state.error = e.message; }
+  state.busy = false; render();
+}
+
 async function submitAnswer(qIdx, answerText, isFollowup, followupParentIdx){
   if(!answerText.trim()) return;
   state.busy = true; render();
@@ -1076,7 +1103,7 @@ async function submitAnswer(qIdx, answerText, isFollowup, followupParentIdx){
     const content = [{type:"text", text:
       `원 질문: ${entry.q}\n학생 답변 기록(순서대로): ${JSON.stringify([{a:entry.a}, ...entry.followups])}\n
       생기부 분석 요약: ${JSON.stringify(state.analysis)}\n
-      이 답변과 직접 관련 있고 주제에서 벗어나지 않는 추가질문이 필요한지 판단해줘. 필요 없으면 needFollowup:false.
+      이 답변과 직접 관련 있고 주제에서 벗어나지 않는 심화 꼬리질문이 필요한지 판단해줘. 필요 없으면 needFollowup:false.
       JSON: {"needFollowup":true/false, "followupQuestion":"..."}`
     }];
     const raw = await callClaude({system: buildInterviewSystemPrompt(), content, maxTokens:800});
@@ -1143,7 +1170,8 @@ function renderStep4(){
     <div class="highlight-board">${state.interview?.highlightedText || state.interview?.highlightText || state.interview?.highlights || "형광펜 분석 데이터가 없습니다."}</div>
   `);
 
-  html += card("5단계 난이도 맞춤형 모의 면접", `<p class="muted">1단계(아이스브레이킹)부터 5단계(학업/진로 포부)까지 순차적 난이도로 구성된 5개의 질문이야.</p>${state.error?`<div class="err">${state.error}</div>`:""}`);
+  html += card("5단계 난이도 맞춤형 모의 면접", `<p class="muted">지침에 따라 난이도가 순차적으로 상승하는 5개의 면접 질문이야.</p>${state.error?`<div class="err">${state.error}</div>`:""}`);
+  
   state.interview.questions.forEach((q,i)=>{
     const log = state.interview.log[i];
     const stageBadge = q.stage && q.difficulty ? `<span style="font-size:12px; font-weight:bold; background:#3b82f6; color:white; padding:3px 8px; border-radius:6px; margin-right:8px;">${q.stage} (${q.difficulty})</span>` : '';
@@ -1168,6 +1196,19 @@ function renderStep4(){
       `).join("") || ""}
     </div>`;
   });
+
+  html += `
+    <div class="card" style="text-align: center; background: #f8fafc; padding: 20px; border: 1px dashed #cbd5e1;">
+      <h4 style="margin: 0 0 10px 0; font-size: 16px; color: #1e293b;">➕ 난이도 지정 추가 질문 5개 생성하기</h4>
+      <p class="muted" style="margin-bottom: 12px;">원하는 난이도를 클릭하면 해당 난이도 기준의 질문 5개가 하단에 추가 생성됩니다.</p>
+      <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+        <button ${state.busy?"disabled":""} onclick="generateMoreQuestions('하')" style="background: #10b981; color: white; padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer;">🟢 [하 / 1~2단계] 5개 생성</button>
+        <button ${state.busy?"disabled":""} onclick="generateMoreQuestions('중')" style="background: #f59e0b; color: white; padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer;">🟡 [중 / 3단계] 5개 생성</button>
+        <button ${state.busy?"disabled":""} onclick="generateMoreQuestions('상')" style="background: #ef4444; color: white; padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer;">🔴 [상 / 4~5단계] 5개 생성</button>
+      </div>
+    </div>
+  `;
+
   html += navButtons({nextLabel:"완료", next:false});
   app.innerHTML = html;
 }
