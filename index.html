@@ -988,7 +988,7 @@ function renderMindMap(mindmapData) {
   const firstNodeRadius = Math.max(340, (cardW + 76) / (2 * sin));
   const outerRadius = firstNodeRadius + (maxBranchNodes - 1) * branchGap + 90;
   const margin = cardW / 2 + 90;
-  const legendRows = Math.ceil(groups.length / 4);
+  const legendRows = Math.ceil(groups.length / 3);
   const cx = outerRadius + margin;
   const cy = outerRadius + margin + legendRows * 28 + 36;
   const width = cx * 2;
@@ -1080,16 +1080,19 @@ function renderMindMap(mindmapData) {
       </g>`;
     }).join("");
 
-  const legend = groups.map((group, index) => {
-    const x = 28 + (index % 4) * 285;
-    const y = 32 + Math.floor(index / 4) * 28;
+ const legend = groups.map((group, index) => {
+  const x = 28 + (index % 3) * 390;
+  const y = 32 + Math.floor(index / 3) * 28;
+  const fullName = String(group.name || "탐구 주제");
+  const label = [...fullName].slice(0, 24).join("");
+  const displayName = fullName.length > 24 ? label + "…" : label;
 
-    return `<g>
-      <circle cx="${x}" cy="${y}" r="6" fill="${group.color}"/>
-      <text x="${x + 12}" y="${y + 4}" fill="#334155" font-size="12">${esc(group.name)}</text>
-    </g>`;
-  }).join("");
-
+  return `<g>
+    <title>${esc(fullName)}</title>
+    <circle cx="${x}" cy="${y}" r="6" fill="${group.color}"/>
+    <text x="${x + 12}" y="${y + 4}" fill="#334155" font-size="12">${esc(displayName)}</text>
+  </g>`;
+}).join("");
   const root = `<g>
     <circle cx="${cx}" cy="${cy}" r="68" fill="#1f2937"/>
     <text x="${cx}" y="${cy - 3}" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">생기부</text>
