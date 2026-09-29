@@ -278,8 +278,7 @@ async function fetchFromCloud() {
     // 입력값이 관리자 키라면 저장된 기록 목록을 표시
     const { data: adminData, error: adminError } =
       await supabaseClient.functions.invoke('admin-records', {
-        body: { action: 'list' },
-        headers: { 'x-admin-key': enteredValue }
+        body: { action: 'list', adminKey: enteredValue },
       });
 
     if (!adminError && Array.isArray(adminData?.records)) {
@@ -359,8 +358,7 @@ function showAdminRecords(records, adminKey) {
     viewButton.textContent = '내용 보기';
     viewButton.onclick = async () => {
       const { data, error } = await supabaseClient.functions.invoke('admin-records', {
-        body: { action: 'detail', code: record.code },
-        headers: { 'x-admin-key': adminKey }
+        body: { action: 'detail', code: record.code, adminKey },
       });
 
       if (error || !data?.record) {
@@ -384,8 +382,8 @@ function showAdminRecords(records, adminKey) {
       if (!confirm(`${record.code} 기록을 삭제할까요?`)) return;
 
       const { data, error } = await supabaseClient.functions.invoke('admin-records', {
-        body: { action: 'delete', code: record.code },
-        headers: { 'x-admin-key': adminKey }
+        body: { action: 'delete', code: record.code, adminKey },
+        
       });
 
       if (error || !data?.deleted) {
