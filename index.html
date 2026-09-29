@@ -133,7 +133,7 @@ svg, .markmap, #mindmap, #markmap-container {
 }
 
 /* 흰색 배경 위에서 글씨가 잘 보이도록 정돈 */
-svg text, .markmap text {
+.markmap text {
   fill: #0f172a !important;
   font-weight: 600 !important;
 }
@@ -862,14 +862,22 @@ function renderStep3(){
       <button onclick="saveToCloud()" style="width:100%;">☁️ 클라우드에 결과 저장하기</button>
     `);
   }
-  // 🧠 마인드맵 카드 추가
-  if(a && !state.busy) {
+  // 🧠 생기부 마인드맵 카드
+  if (a && !state.busy) {
     html += card("🧠 생기부 역량 마인드맵", `
-      <p class="muted">분석된 생기부 키워드와 학교별 연결고리를 마인드맵으로 시각화합니다.</p>
-      <div style="width:100%; height:380px; border:1px solid var(--border); border-radius:10px; background:var(--bg); overflow:hidden; margin-bottom:10px;">
-        <svg id="mindmapSvg" style="width:100%; height:100%;"></svg>
+      <p class="muted">
+        같은 탐구 주제로 이어지는 활동은 학년이 달라도 같은 색으로 묶고,
+        같은 학년 안에서 연계한 활동은 선으로 연결합니다.
+      </p>
+
+      <div style="width:100%; height:380px; border:1px solid var(--border); border-radius:10px; background:#fff; overflow:auto; margin-bottom:10px;">
+        <div id="mindmap-container" style="width:100%; min-height:100%; background:#fff;"></div>
       </div>
-      <button onclick="generateMindmap()" style="width:100%;">🧠 마인드맵 생성 / 새로고침</button>
+
+      <div class="row">
+        <button class="ghost" onclick="generateMindmap()">현재 마인드맵 표시</button>
+        <button onclick="reanalyzeMindmap()">🧠 마인드맵만 다시 분석</button>
+      </div>
     `);
   }
 
@@ -880,76 +888,205 @@ function renderStep3(){
   }
   app.innerHTML = html;
 }
+function buildMindmapPrompt() {
+  return `생기부 원문만 근거로 학년 간 탐구 주제의 연속성과 같은 학년 안의 교과 연계를 분석하라.
+
+1. 1~3학년에서 같은 탐구가 이어지거나 같은 주제로 확장된 활동은 동일한 themeId를 사용하라. 같은 themeId는 학년이 달라도 같은 색으로 표시된다.
+2. 단순히 공통 단어가 있다는 이유만으로 활동을 묶지 마라. 각 활동의 themeEvidence에 같은 주제로 판단한 생기부 근거를 짧게 적어라.
+3. intraGradeConnections에는 같은 학년 활동 두 개를 실제로 연결해 탐구한 근거가 있을 때만 넣어라. from과 to는 nodes 안에 있는 id여야 하며, 두 활동의 grade는 같아야 한다. relation에는 연계 내용을, evidence에는 생기부 근거를 적어라.
+4. 생기부에 없는 활동이나 연결은 만들지 마라. 관계가 불확실하면 연결선으로 만들지 마라.
+5. 색상값은 출력하지 마라. 화면에서 같은 themeId에 같은 색을 지정한다.
+
+출력 JSON(다른 텍스트 없이 이것만):
+{"mindmap":{
+  "themes":[{"id":"t1","name":"탐구 주제명"}],
+  "nodes":[{"id":"n1","grade":1,"subject":"과목명","title":"활동 요약","themeId":"t1","themeEvidence":"생기부 근거"}],
+  "intraGradeConnections":[{"from":"n1","to":"n2","relation":"같은 학년 활동의 연계 내용","evidence":"생기부 근거"}]
+}}`;
+}
 // 1. 마인드맵 카드 레이아웃 그려주는 헬퍼 함수
 function renderMindMap(mindmapData) {
-  if (!mindmapData || !mindmapData.nodes || mindmapData.nodes.length === 0) {
-    return '<div style="padding:20px; text-align:center; color:#6b7280;">분석된 마인드맵 데이터가 없습니다.</div>';
+  const nodes = Array.isArray(mindmapData?.nodes)
+    ? mindmapData.nodes.filter(n => [1, 2, 3].includes(Number(n.grade)))
+    : [];
+
+  if (!nodes.length) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" style="width:100%;height:100%;"><text x="50%" y="50%" text-anchor="middle" fill="#64748b" font-size="16">분석된 마인드맵 활동이 없습니다.</text></svg>';
   }
 
-  const themeColorMap = {};
-  (mindmapData.themes || []).forEach(t => {
-    themeColorMap[t.id] = { name: t.name, color: t.color || '#6b7280' };
+  const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[ch]));
+
+  const palette = [
+    "#2878B5", "#168A72", "#D66B37", "#A64D79",
+    "#7256A8", "#8A7628", "#3B8D9B", "#B24C3D"
+  ];
+
+  const themes = Array.isArray(mindmapData.themes) ? mindmapData.themes : [];
+  const themeById = {};
+
+  themes.forEach((theme, index) => {
+    themeById[theme.id] = {
+      id: theme.id,
+      name: theme.name || "탐구 주제",
+      color: palette[index % palette.length]
+    };
   });
 
-  const g1Nodes = mindmapData.nodes.filter(n => n.grade === 1);
-  const g2Nodes = mindmapData.nodes.filter(n => n.grade === 2);
-  const g3Nodes = mindmapData.nodes.filter(n => n.grade === 3);
+  const groups = themes.map(theme => ({
+    ...themeById[theme.id],
+    nodes: nodes
+      .filter(node => node.themeId === theme.id)
+      .sort((a, b) => Number(a.grade) - Number(b.grade))
+  })).filter(group => group.nodes.length);
 
-  const renderNode = (node) => {
-    const theme = themeColorMap[node.themeId] || { name: '기타', color: '#9ca3af' };
-    return `
-      <div id="node-${node.id}" style="
-        border-left: 5px solid ${theme.color};
-        background: #ffffff;
-        padding: 12px 14px;
-        border-radius: 8px;
-        margin-bottom: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      ">
-        <div style="font-size: 11px; font-weight: bold; color: ${theme.color};">
-          🏷️ ${theme.name} (${node.subject})
-        </div>
-        <div style="font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 4px;">
-          ${node.title}
-        </div>
-      </div>
-    `;
-  };
+  const unassigned = nodes.filter(node => !themeById[node.themeId]);
 
-  const renderConnections = (connections) => {
-    if (!connections || connections.length === 0) return '';
-    return connections.map(c => `
-      <div style="
-        background: #f3f4f6; 
-        border: 1px dashed #9ca3af; 
-        padding: 8px 10px; 
-        border-radius: 6px; 
-        font-size: 12px; 
-        color: #374151;
-        margin: 8px 0;
-      ">
-        🔗 <b>과목 연계:</b> ${c.relation}
-      </div>
-    `).join('');
-  };
+  if (unassigned.length) {
+    groups.push({
+      id: "unassigned",
+      name: "주제 미분류",
+      color: "#64748b",
+      nodes: unassigned
+    });
+  }
 
-  return `
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; background: #f8fafc; padding: 16px; border-radius: 12px; border: 1px solid #e2e8f0;">
-      <div>
-        <h4 style="text-align: center; margin-bottom: 12px; color: #1e293b; font-size: 15px;">📌 1학년</h4>
-        ${g1Nodes.length > 0 ? g1Nodes.map(renderNode).join('') : '<div style="font-size:12px; color:#9ca3af; text-align:center;">기록 없음</div>'}
-      </div>
-      <div>
-        <h4 style="text-align: center; margin-bottom: 12px; color: #1e293b; font-size: 15px;">📌 2학년</h4>
-        ${g2Nodes.length > 0 ? g2Nodes.map(renderNode).join('') : '<div style="font-size:12px; color:#9ca3af; text-align:center;">기록 없음</div>'}
-      </div>
-      <div>
-        <h4 style="text-align: center; margin-bottom: 12px; color: #1e293b; font-size: 15px;">📌 3학년</h4>
-        ${g3Nodes.length > 0 ? g3Nodes.map(renderNode).join('') : '<div style="font-size:12px; color:#9ca3af; text-align:center;">기록 없음</div>'}
-        ${renderConnections(mindmapData.intraGradeConnections)}
-      </div>
-    </div>
-  `;
+  const cardW = 236;
+  const cardH = 104;
+  const branchGap = 142;
+  const maxBranchNodes = Math.max(...groups.map(group => group.nodes.length), 1);
+  const sin = Math.sin(Math.PI / Math.max(groups.length, 2));
+  const firstNodeRadius = Math.max(340, (cardW + 76) / (2 * sin));
+  const outerRadius = firstNodeRadius + (maxBranchNodes - 1) * branchGap + 90;
+  const margin = cardW / 2 + 90;
+  const legendRows = Math.ceil(groups.length / 4);
+  const cx = outerRadius + margin;
+  const cy = outerRadius + margin + legendRows * 28 + 36;
+  const width = cx * 2;
+  const height = cy + outerRadius + margin;
+  const positions = {};
+  const branches = [];
+  const hubs = [];
+  const cards = [];
+
+  groups.forEach((group, index) => {
+    const angle = -Math.PI / 2 + index * 2 * Math.PI / groups.length;
+    const hubX = cx + 150 * Math.cos(angle);
+    const hubY = cy + 150 * Math.sin(angle);
+
+    branches.push(
+      `<path d="M ${cx} ${cy} L ${hubX} ${hubY}" stroke="${group.color}" stroke-width="5" fill="none"/>`
+    );
+
+    hubs.push(
+      `<g>
+        <circle cx="${hubX}" cy="${hubY}" r="54" fill="#fff" stroke="${group.color}" stroke-width="4"/>
+        <text x="${hubX}" y="${hubY + 4}" text-anchor="middle" fill="#1e293b" font-size="12" font-weight="700">${esc(group.name).slice(0, 16)}</text>
+      </g>`
+    );
+
+    group.nodes.forEach((node, nodeIndex) => {
+      const radius = firstNodeRadius + nodeIndex * branchGap;
+      const centerX = cx + radius * Math.cos(angle);
+      const centerY = cy + radius * Math.sin(angle);
+      const x = centerX - cardW / 2;
+      const y = centerY - cardH / 2;
+
+      positions[node.id] = { centerX, centerY, grade: Number(node.grade) };
+
+      branches.push(
+        `<path d="M ${hubX} ${hubY} L ${centerX} ${centerY}" stroke="${group.color}" stroke-width="3" fill="none"/>`
+      );
+
+      const title = [...String(node.title || "활동 내용 미기재")]
+        .reduce((lines, char) => {
+          if (!lines.length || [...lines[lines.length - 1]].length >= 18) {
+            lines.push("");
+          }
+          lines[lines.length - 1] += char;
+          return lines;
+        }, [])
+        .slice(0, 2);
+
+      if ([...String(node.title || "")].length > 36 && title.length) {
+        title[1] += "…";
+      }
+
+      const titleSvg = title.map((line, i) =>
+        `<tspan x="${x + 14}" dy="${i ? 17 : 0}">${esc(line)}</tspan>`
+      ).join("");
+
+      cards.push(
+        `<g>
+          <title>${esc(node.themeEvidence || group.name)}</title>
+          <rect x="${x}" y="${y}" width="${cardW}" height="${cardH}" rx="13" fill="#fff" stroke="${group.color}" stroke-width="2.5"/>
+          <rect x="${x + 10}" y="${y + 10}" width="66" height="20" rx="10" fill="${group.color}"/>
+          <text x="${x + 43}" y="${y + 24}" text-anchor="middle" fill="#fff" font-size="10" font-weight="700">${node.grade}학년</text>
+          <text x="${x + 84}" y="${y + 24}" fill="#475569" font-size="10">${esc(node.subject || "과목 미상")}</text>
+          <text x="${x + 14}" y="${y + 52}" fill="#1e293b" font-size="12" font-weight="600">${titleSvg}</text>
+        </g>`
+      );
+    });
+  });
+
+  const connections = (Array.isArray(mindmapData.intraGradeConnections)
+    ? mindmapData.intraGradeConnections
+    : [])
+    .filter(c =>
+      positions[c.from] &&
+      positions[c.to] &&
+      c.from !== c.to &&
+      positions[c.from].grade === positions[c.to].grade
+    )
+    .map(c => {
+      const from = positions[c.from];
+      const to = positions[c.to];
+      const mx = (from.centerX + to.centerX) / 2;
+      const my = (from.centerY + to.centerY) / 2;
+      const relation = esc(c.relation || "교과 연계");
+
+      return `<g>
+        <title>${esc(c.evidence || c.relation || "같은 학년 내 연계")}</title>
+        <path d="M ${from.centerX} ${from.centerY} Q ${mx + 28} ${my - 28}, ${to.centerX} ${to.centerY}" fill="none" stroke="#334155" stroke-width="2.5" stroke-dasharray="7 5"/>
+        <rect x="${mx - 48}" y="${my - 11}" width="96" height="22" rx="11" fill="#fff" stroke="#94a3b8"/>
+        <text x="${mx}" y="${my + 4}" text-anchor="middle" fill="#334155" font-size="9">${relation.slice(0, 13)}</text>
+      </g>`;
+    }).join("");
+
+  const legend = groups.map((group, index) => {
+    const x = 28 + (index % 4) * 285;
+    const y = 32 + Math.floor(index / 4) * 28;
+
+    return `<g>
+      <circle cx="${x}" cy="${y}" r="6" fill="${group.color}"/>
+      <text x="${x + 12}" y="${y + 4}" fill="#334155" font-size="12">${esc(group.name)}</text>
+    </g>`;
+  }).join("");
+
+  const root = `<g>
+    <circle cx="${cx}" cy="${cy}" r="68" fill="#1f2937"/>
+    <text x="${cx}" y="${cy - 3}" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">생기부</text>
+    <text x="${cx}" y="${cy + 20}" text-anchor="middle" fill="#e2e8f0" font-size="12">탐구 흐름</text>
+  </g>`;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 ${width} ${height}"
+    role="img"
+    aria-label="주제별 생기부 마인드맵"
+    style="display:block;width:100%;height:auto;min-width:980px;background:#fff">
+    <rect width="100%" height="100%" fill="#fff"/>
+    ${legend}
+    ${branches.join("")}
+    ${connections}
+    ${hubs.join("")}
+    ${root}
+    ${cards.join("")}
+  </svg>`;
 }
 
 // 2. 기존 generateMindmap 교체 함수
@@ -986,6 +1123,54 @@ function generateMindmap() {
   } else {
     container.innerHTML =
       '<div style="padding:20px; text-align:center; color:#6b7280;">분석된 마인드맵 데이터가 없습니다. 생기부 분석 후 다시 시도해 주세요.</div>';
+  }
+}
+async function reanalyzeMindmap() {
+  if (state.busy) return;
+
+  state.busy = true;
+  state.analysisProgress = {
+    step: 0,
+    total: 1,
+    label: "마인드맵만 다시 분석 중"
+  };
+  render();
+
+  try {
+    const content = buildAnalysisUserContent(buildMindmapPrompt(), true);
+    const raw = await callClaude({
+      system: ANALYSIS_PRINCIPLES,
+      content,
+      maxTokens: 4096
+    });
+
+    const parsed = extractJSON(raw);
+    const result =
+      parsed.mindmap &&
+      Array.isArray(parsed.mindmap.nodes) &&
+      parsed.mindmap.nodes.length > 0
+        ? parsed.mindmap
+        : parsed;
+
+    if (!Array.isArray(result.nodes) || result.nodes.length === 0) {
+      throw new Error("마인드맵 활동 데이터가 없습니다. 생기부 입력을 확인해 주세요.");
+    }
+
+    state.analysis = state.analysis || {};
+    state.analysis.mindmap = {
+      themes: Array.isArray(result.themes) ? result.themes : [],
+      nodes: result.nodes,
+      intraGradeConnections: Array.isArray(result.intraGradeConnections)
+        ? result.intraGradeConnections
+        : []
+    };
+  } catch (e) {
+    alert("마인드맵 재분석 실패: " + e.message);
+  } finally {
+    state.busy = false;
+    state.analysisProgress.step = 1;
+    render();
+    generateMindmap();
   }
 }
 function retryAnalysis(){
@@ -1067,20 +1252,7 @@ r = await runStage("전체 활동 S~C 등급 분류 중",
     state.analysis.selfPerceptionCompare = r.selfPerceptionCompare; render();
         await sleep(4000);
 
-    r = await runStage("생기부 마인드맵 분석 중",
-      `생기부 원문을 바탕으로 학년별 주요 활동과 주제 간 연결을 분석하라.
-      생기부에 없는 활동이나 연결은 만들지 마라. 확인 가능한 활동이 없으면 nodes를 빈 배열로 반환하라.
-      themes에는 반복되거나 연결되는 탐구 주제를 정의하고, 각 주제마다 고유 id와 색상을 부여하라.
-      nodes에는 생기부에서 확인되는 주요 활동을 학년별로 정리하고, 각 활동의 themeId는 themes의 id와 일치시켜라.
-      intraGradeConnections에는 같은 학년 안에서 과목 간 연계가 생기부에 명시된 경우만 기록하라.
-      grade는 숫자 1, 2, 3 중 하나로 작성하라.
-
-      출력 JSON(다른 텍스트 없이 이것만):
-      {"mindmap":{
-        "themes":[{"id":"t1","name":"주제명","color":"#3b82f6"}],
-        "nodes":[{"id":"n1","grade":1,"subject":"과목명","title":"생기부 근거가 있는 활동 요약","themeId":"t1"}],
-        "intraGradeConnections":[{"from":"n1","to":"n2","relation":"생기부에 명시된 과목 간 연결"}]
-      }}`, 4096, true);
+   r = await runStage("생기부 마인드맵 분석 중", buildMindmapPrompt(), 4096, true);
 
        const mindmapResult =
       r.mindmap && Array.isArray(r.mindmap.nodes) && r.mindmap.nodes.length > 0
