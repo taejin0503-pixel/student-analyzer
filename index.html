@@ -1498,26 +1498,39 @@ async function generateQuestions(){
     
     const parsed = extractJSON(raw);
 
-    const applyHighlight = (originalText, keywords = {}) => {
+   const applyHighlight = (originalText, keywords = {}) => {
   if (!originalText) return "";
-  let result = originalText;
 
-  (keywords.yellowKeywords || []).forEach(kw => {
-    if (kw && kw.trim()) result = result.split(kw).join(`<mark class="hl-yellow">${kw}</mark>`);
-  });
-  (keywords.greenKeywords || []).forEach(kw => {
-    if (kw && kw.trim()) result = result.split(kw).join(`<mark class="hl-green">${kw}</mark>`);
-  });
-  (keywords.redKeywords || []).forEach(kw => {
-    if (kw && kw.trim()) result = result.split(kw).join(`<mark class="hl-red">${kw}</mark>`);
-  });
-  (keywords.blueKeywords || []).forEach(kw => {
-    if (kw && kw.trim()) result = result.split(kw).join(`<mark class="hl-blue">${kw}</mark>`);
-  });
+  const categories = [
+    ["yellowKeywords", "hl-yellow"],
+    ["greenKeywords", "hl-green"],
+    ["redKeywords", "hl-red"],
+    ["blueKeywords", "hl-blue"]
+  ];
 
-  return result;
+  const seen = new Set();
+  const items = [];
+
+  for (const [key, className] of categories) {
+    for (const value of keywords[key] || []) {
+      const keyword = String(value).trim();
+
+      if (!keyword || !originalText.includes(keyword) || seen.has(keyword)) continue;
+      seen.add(keyword);
+
+      const safeKeyword = keyword
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+
+      items.push(`<mark class="${className}">${safeKeyword}</mark>`);
+    }
+  }
+
+  return items.join(" ");
 };
-
     state.interview.highlightedG1 = applyHighlight(state.record.g1, parsed.grade1Keywords);
     state.interview.highlightedG2 = applyHighlight(state.record.g2, parsed.grade2Keywords);
     state.interview.highlightedG3 = applyHighlight(state.record.g3, parsed.grade3Keywords);
