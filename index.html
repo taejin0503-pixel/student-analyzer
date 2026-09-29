@@ -1539,7 +1539,41 @@ async function generateQuestions(){
   }catch(e){ state.error = e.message; }
   state.busy = false; render();
 }
+window.startSTT = function(index) {
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
 
+  if (!SpeechRecognition) {
+    alert("이 브라우저는 음성 입력을 지원하지 않습니다. Chrome이나 Edge에서 시도해 주세요.");
+    return;
+  }
+
+  const answerBox = document.getElementById(`ans${index}`);
+  if (!answerBox) {
+    alert("답변 입력칸을 찾을 수 없습니다.");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "ko-KR";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript.trim();
+    if (transcript) {
+      answerBox.value = [answerBox.value.trim(), transcript]
+        .filter(Boolean)
+        .join("\n");
+    }
+  };
+
+  recognition.onerror = (event) => {
+    alert(`음성 인식 오류: ${event.error}`);
+  };
+
+  recognition.start();
+};
 async function generateMoreQuestions(level){
   state.busy = true; render();
   try {
