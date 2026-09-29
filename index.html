@@ -1605,18 +1605,60 @@ async function submitAnswer(qIdx, answerText, isFollowup, followupParentIdx){
       const entry = state.interview.log[followupParentIdx];
       entry.followups[entry.followups.length-1].a = answerText;
     }
-    const entry = state.interview.log[isFollowup?followupParentIdx:qIdx];
-    const content = [{type:"text", text:
-      `원 질문: ${entry.q}\n학생 답변 기록(순서대로): ${JSON.stringify([{a:entry.a}, ...entry.followups])}\n
-      생기부 분석 요약: ${JSON.stringify(state.analysis)}\n
-      이 답변과 직접 관련 있고 주제에서 벗어나지 않는 심화 꼬리질문이 필요한지 판단해줘. 필요 없으면 needFollowup:false.
-      JSON: {"needFollowup":true/false, "followupQuestion":"..."}`
-    }];
-    const raw = await callClaude({system: buildInterviewSystemPrompt(), content, maxTokens:800});
-    const parsed = extractJSON(raw);
-    if(parsed.needFollowup && parsed.followupQuestion){
-      entry.followups.push({q: parsed.followupQuestion, a:""});
-    }
+   const entry = state.interview.log[isFollowup ? followupParentIdx : qIdx];
+const answerTarget = isFollowup
+  ? entry.followups[entry.followups.length - 1]
+  : entry;
+const answerQuestion = isFollowup ? answerTarget.q : entry.q;
+
+const recordText =
+  `[1학년]\n${state.record.g1 || ""}\n` +
+  `[2학년]\n${state.record.g2 || ""}\n` +
+  `[3학년]\n${state.record.g3 || ""}`;
+
+const content = [{
+  type: "text",
+  text: `지원 학과: ${state.schools?.[0]?.dept || "미입력"}
+질문: ${answerQuestion}
+학생 답변: ${answerText}
+
+생기부 원문:
+${recordText}
+
+결론부터 답했는지 평가해줘. 잘한 점은 구체적인 근거가 있을 때만 말하고, 없으면 억지로 칭찬하지 마. 부족한 점은 엄격하고 구체적인 팁으로 말해줘. 생기부에서 확인되지 않는 주장은 거짓이라고 단정하지 말고, 사실인지 확인하라고 알려줘. 답변과 지원 학과에 맞는 추가 질문이 필요하면 질문 하나와 답변 팁을 작성해줘.
+
+JSON: {"goodPoint":"","improvement":"","recordWarning":"","needFollowup":false,"followupQuestion":"","followupTip":""}`
+}];
+
+const reviewSystem = `너는 엄격하지만 건설적인 대입 면접 답변 코치다.
+반드시 JSON 객체 하나만 출력하고 다른 설명은 쓰지 마라.
+잘한 점은 실제 근거가 있을 때만 쓰고, 없으면 빈 문자열로 둔다.
+생기부에 없는 내용은 거짓이라 단정하지 말고 확인이 필요하다고 안내한다.
+추가 질문이 필요 없으면 needFollowup은 false, 질문과 팁은 빈 문자열로 둔다.
+출력 형식: {"goodPoint":"","improvement":"","recordWarning":"","needFollowup":false,"followupQuestion":"","followupTip":""}`;
+
+const raw = await callClaude({
+  system: reviewSystem,
+  content,
+  maxTokens: 1000
+});
+
+const parsed = extractJSON(raw);
+
+answerTarget.feedback = [
+  parsed.goodPoint ? `잘한 점: ${parsed.goodPoint}` : "",
+  parsed.improvement ? `보완할 점: ${parsed.improvement}` : "",
+  parsed.recordWarning ? `생기부 확인: ${parsed.recordWarning}` : ""
+].filter(Boolean).join("\n");
+
+if (parsed.needFollowup && parsed.followupQuestion) {
+  entry.followups.push({
+    q: parsed.followupQuestion,
+    tip: parsed.followupTip || "",
+    a: "",
+    feedback: ""
+  });
+}
   }catch(e){ state.error = e.message; }
   state.busy = false; render();
 }
@@ -1689,17 +1731,23 @@ function renderStep4(){
         <button onclick="speakQuestion('${q.question.replace(/'/g, "\\'")}')" style="margin-top: 8px; padding: 4px 10px; font-size: 13px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">🔊 질문 듣기</button>
       </div>
       <details><summary>예시 답변 보기</summary><div class="muted">${q.sampleAnswer||""}</div></details>
-      ${log? `<div class="chat-msg chat-a">${log.a}</div>` : 
+      ${log ? `<div class="chat-msg chat-a">${log.a}</div>${log.feedback ? `<div class="muted" style="white-space:pre-line; margin:8px 0;">${log.feedback}</div>` : ""}` :
         `<div style="margin: 6px 0;">
            <button id="stt-btn-${i}" onclick="startSTT(${i})" type="button" style="padding: 6px 12px; font-size: 13px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer;">🎙️ 음성으로 답변하기</button>
          </div>
          <textarea id="ans${i}" placeholder="답변을 입력하거나 음성으로 말해주세요"></textarea>
          <div class="row"><button ${state.busy?"disabled":""} onclick="submitAnswer(${i}, document.getElementById('ans${i}').value, false)">답변 제출</button></div>`}
-      ${log && log.followups.map((f,fi)=>`
-        <div class="chat-msg chat-f"><b>추가질문.</b> ${f.q}</div>${f.a? `<div class="chat-msg chat-a">${f.a}</div>` :
-          `<textarea id="fans${i}_${fi}" placeholder="추가질문 답변"></textarea>
-           <div class="row"><button ${state.busy?"disabled":""} onclick="submitAnswer(${i}, document.getElementById('fans${i}_${fi}').value, true, ${i})">답변 제출</button></div>`}
-      `).join("") || ""}
+    ${log && log.followups.map((f, fi) =>
+  `<div class="chat-msg chat-f"><b>추가질문:</b> ${f.q}</div>
+  ${f.tip ? `<div class="muted" style="margin:6px 0;"><b>답변 팁:</b> ${f.tip}</div>` : ""}
+  ${f.a
+    ? `<div class="chat-msg chat-a">${f.a}</div>${f.feedback ? `<div class="muted" style="white-space:pre-line; margin:8px 0;">${f.feedback}</div>` : ""}`
+    : `
+      <textarea id="fans${i}_${fi}" placeholder="추가질문 답변"></textarea>
+      <div class="row"><button ${state.busy ? "disabled" : ""} onclick="submitAnswer(${i}, document.getElementById('fans${i}_${fi}').value, true, ${i})">답변 제출</button></div>
+    `
+  }`
+).join("") || ""}
     </div>`;
   });
 
