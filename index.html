@@ -265,18 +265,33 @@ async function saveToCloud() {
 // 클라우드 불러오기 함수
 async function fetchFromCloud() {
   if (!supabaseClient) {
-    alert('Supabase Key가 설정되지 않았습니다. script 상단의 SUPABASE_KEY를 입력해주세요.');
+    alert('Supabase Key가 설정되지 않았습니다.');
     return;
   }
 
   const inputCode = prompt('저장된 고유 식별 코드를 입력하세요 (예: STU-123456):');
   if (!inputCode) return;
 
+  const enteredValue = inputCode.trim();
+
   try {
+    // 입력값이 관리자 키라면 저장된 기록 목록을 표시
+    const { data: adminData, error: adminError } =
+      await supabaseClient.functions.invoke('admin-records', {
+        body: { action: 'list' },
+        headers: { 'x-admin-key': enteredValue }
+      });
+
+    if (!adminError && Array.isArray(adminData?.records)) {
+      showAdminRecords(adminData.records, enteredValue);
+      return;
+    }
+
+    // 관리자 키가 아니면 기존 방식으로 식별 코드를 조회
     const { data, error } = await supabaseClient
       .from('student_records')
       .select('*')
-      .eq('code', inputCode.trim())
+      .eq('code', enteredValue)
       .single();
 
     if (error || !data) {
@@ -292,6 +307,102 @@ async function fetchFromCloud() {
   } catch (err) {
     alert('불러오기 실패: ' + err.message);
   }
+}
+
+function showAdminRecords(records, adminKey) {
+  document.getElementById('adminRecordsOverlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'adminRecordsOverlay';
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:99999;background:#0009;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  const panel = document.createElement('div');
+  panel.style.cssText =
+    'background:#fff;color:#222;width:min(760px,100%);max-height:85vh;overflow:auto;border-radius:14px;padding:20px;';
+
+  const header = document.createElement('div');
+  header.style.cssText =
+    'display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;';
+
+  const title = document.createElement('h2');
+  title.textContent = '저장된 기록 관리';
+  title.style.margin = '0';
+
+  const closeButton = document.createElement('button');
+  closeButton.textContent = '닫기';
+  closeButton.onclick = () => overlay.remove();
+
+  header.append(title, closeButton);
+  panel.append(header);
+
+  if (!records.length) {
+    const empty = document.createElement('p');
+    empty.textContent = '저장된 기록이 없습니다.';
+    panel.append(empty);
+  }
+
+  records.forEach(record => {
+    const row = document.createElement('div');
+    row.style.cssText =
+      'border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0;';
+
+    const info = document.createElement('div');
+    info.textContent =
+      `${record.code} · ${record.student_name || '학생'} · ` +
+      `${record.created_at ? new Date(record.created_at).toLocaleString('ko-KR') : ''}`;
+
+    const buttons = document.createElement('div');
+    buttons.style.cssText = 'display:flex;gap:8px;margin-top:10px;';
+
+    const viewButton = document.createElement('button');
+    viewButton.textContent = '내용 보기';
+    viewButton.onclick = async () => {
+      const { data, error } = await supabaseClient.functions.invoke('admin-records', {
+        body: { action: 'detail', code: record.code },
+        headers: { 'x-admin-key': adminKey }
+      });
+
+      if (error || !data?.record) {
+        alert('기록을 불러오지 못했습니다.');
+        return;
+      }
+
+      row.querySelector('pre')?.remove();
+
+      const details = document.createElement('pre');
+      details.textContent = JSON.stringify(data.record.result_json, null, 2);
+      details.style.cssText =
+        'max-height:260px;overflow:auto;white-space:pre-wrap;word-break:break-word;background:#f4f4f4;padding:12px;border-radius:8px;margin-top:12px;';
+
+      row.append(details);
+    };
+
+    const deleteButton = document.createElement('button');
+    deleteButton.textContent = '삭제';
+    deleteButton.onclick = async () => {
+      if (!confirm(`${record.code} 기록을 삭제할까요?`)) return;
+
+      const { data, error } = await supabaseClient.functions.invoke('admin-records', {
+        body: { action: 'delete', code: record.code },
+        headers: { 'x-admin-key': adminKey }
+      });
+
+      if (error || !data?.deleted) {
+        alert('기록을 삭제하지 못했습니다.');
+        return;
+      }
+
+      row.remove();
+    };
+
+    buttons.append(viewButton, deleteButton);
+    row.append(info, buttons);
+    panel.append(row);
+  });
+
+  overlay.append(panel);
+  document.body.append(overlay);
 }
 
 const STEP_NAMES = ["API 키","학교 자료","생기부","성적표 확인","분석 결과","모의 면접"];
