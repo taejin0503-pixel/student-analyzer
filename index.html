@@ -1487,9 +1487,8 @@ async function generateQuestions(){
     if (!state.record.g1 && !state.record.g2 && !state.record.g3) {
       throw new Error("생기부 텍스트가 없습니다. '3. 생기부' 단계에서 텍스트를 채워주세요.");
     }
-
-    const prompt = `[생기부 원문]\n${rawRecordText}\n\n위 생기부를 바탕으로 지침의 기본 면접 진행 규칙 1~5단계에 따라 질문 5개와 형광펜 키워드를 추출해줘.`;
-
+    const targetDept = state.schools?.[0]?.dept?.trim() || "학과 미입력";
+    const prompt = `[지원 학과]\n${targetDept}\n\n[생기부 원문]\n${rawRecordText}\n\n지원 학과와 생기부 내용을 함께 참고해 지침의 기본 면접 진행 규칙 1~5단계에 맞춰 질문 5개를 만들어. 질문은 지원 학과와 직접 관련되게 하고, 학년별 형광펜 키워드도 추출해줘.`;
     const raw = await callClaude({
       system: buildInterviewSystemPrompt(),
       content: [{ type: "text", text: prompt }],
@@ -1545,7 +1544,8 @@ async function generateMoreQuestions(level){
   state.busy = true; render();
   try {
     const rawRecordText = `[1학년]\n${state.record.g1 || ""}\n\n[2학년]\n${state.record.g2 || ""}\n\n[3학년]\n${state.record.g3 || ""}`;
-    const prompt = `[생기부 원문]\n${rawRecordText}\n\n[요청] 지침의 '■ 2. 동적 추가 질문 생성 규칙'에 따라 난이도 [${level}] 수준에 맞추어 정확히 5개의 추가 면접 질문을 생성해줘.`;
+    const targetDept = state.schools?.[0]?.dept?.trim() || "학과 미입력";
+    const prompt = `[지원 학과]\n${targetDept}\n\n[생기부 원문]\n${rawRecordText}\n\n[요청] 지침의 '■ 2. 동적 추가 질문 생성 규칙'에 따라 난이도 [${level}] 수준에 맞추어 정확히 5개의 추가 면접 질문을 생성해줘.`;
 
     const raw = await callClaude({
       system: buildInterviewSystemPrompt(),
