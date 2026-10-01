@@ -212,52 +212,59 @@ function generateUniqueCode() {
   return 'STU-' + Math.floor(100000 + Math.random() * 900000);
 }
 
-// 클라우드 저장 함수 (이미지 용량 제거 최적화)
+// 클라우드 저장 함수
 async function saveToCloud() {
   if (!supabaseClient) {
-    alert('Supabase Key가 설정되지 않았습니다. script 상단의 SUPABASE_KEY를 입력해주세요.');
+    alert('Supabase 설정을 확인해주세요.');
     return;
   }
+
   if (!state.analysis) {
     alert('저장할 분석 결과가 없습니다. 먼저 분석을 진행해주세요.');
     return;
   }
 
-  const uniqueCode = generateUniqueCode();
-  const studentName = state.schools[0]?.name ? `${state.schools[0].name} 지원자` : "학생부 분석 결과";
+  const studentName = state.schools[0]?.name
+    ? `${state.schools[0].name} 지원자`
+    : '학생부 분석 결과';
+
+  const cleanRecord = {
+    ...state.record,
+    g3Images: [],
+    autoImages: []
+  };
+
+  const cleanSchools = (state.schools || []).map(s => ({
+    ...s,
+    guideImages: [],
+    idealTraitImages: []
+  }));
+
+  const cleanState = {
+    ...state,
+    record: cleanRecord,
+    schools: cleanSchools
+  };
 
   try {
-    // 1. DB 전송용 데이터 생성: 모든 Base64 이미지 배열을 비워 저장 용량 99% 축소
-    const cleanRecord = {
-      ...state.record,
-      g3Images: [],
-      autoImages: []
-    };
+    const { data, error } = await supabaseClient.functions.invoke(
+      'student-records',
+      {
+        body: {
+          action: 'save',
+          studentName,
+          record: { state: cleanState }
+        }
+      }
+    );
 
-    const cleanSchools = (state.schools || []).map(s => ({
-      ...s,
-      guideImages: [],
-      idealTraitImages: []
-    }));
+    if (error || !data?.code) {
+      throw new Error(data?.error || error?.message || '저장에 실패했습니다.');
+    }
 
-    const cleanState = {
-      ...state,
-      record: cleanRecord,
-      schools: cleanSchools
-    };
-
-    // 2. 최적화된 cleanState를 Supabase에 저장
-    const { data, error } = await supabaseClient
-      .from('student_records')
-      .insert([{
-        code: uniqueCode,
-        student_name: studentName,
-        result_json: { state: cleanState }
-      }]);
-
-    if (error) throw error;
-
-    alert(`[클라우드 저장 완료]\n고유 식별 코드: ${uniqueCode}\n어느 기기에서든 우측 상단 '☁️ 결과 불러오기'를 통해 조회할 수 있습니다.`);
+    alert(
+      `[클라우드 저장 완료]\n고유 식별 코드: ${data.code}\n이 코드를 보관해두세요.`
+    );
   } catch (err) {
     alert('클라우드 저장 실패: ' + err.message);
   }
@@ -266,49 +273,36 @@ async function saveToCloud() {
 // 클라우드 불러오기 함수
 async function fetchFromCloud() {
   if (!supabaseClient) {
-    alert('Supabase Key가 설정되지 않았습니다.');
+    alert('Supabase 설정을 확인해주세요.');
     return;
   }
 
-  const inputCode = prompt('저장된 고유 식별 코드를 입력하세요 (예: STU-123456):');
+  const inputCode = prompt('저장된 고유 식별 코드를 입력하세요:');
   if (!inputCode) return;
 
-  const enteredValue = inputCode.trim();
-
   try {
-    // 입력값이 관리자 키라면 저장된 기록 목록을 표시
-    const { data: adminData, error: adminError } =
-      await supabaseClient.functions.invoke('admin-records', {
-        body: { action: 'list', adminKey: enteredValue },
-      });
+    const { data, error } = await supabaseClient.functions.invoke(
+      'student-records',
+      {
+        body: {
+          action: 'get',
+          code: inputCode.trim()
+        }
+      }
+    );
 
-    if (!adminError && Array.isArray(adminData?.records)) {
-      showAdminRecords(adminData.records, enteredValue);
+    if (error || !data?.record?.result_json?.state) {
+      alert(data?.error || '해당 식별 코드로 저장된 결과가 없습니다.');
       return;
     }
 
-    // 관리자 키가 아니면 기존 방식으로 식별 코드를 조회
-    const { data, error } = await supabaseClient
-      .from('student_records')
-      .select('*')
-      .eq('code', enteredValue)
-      .single();
-
-    if (error || !data) {
-      alert('해당 식별 코드로 저장된 분석 결과를 찾을 수 없습니다.');
-      return;
-    }
-
-    if (data.result_json && data.result_json.state) {
-      state = data.result_json.state;
-      render();
-      alert(`${data.student_name || '학생'}의 분석 데이터를 성공적으로 불러왔습니다!`);
-    }
+    state = data.record.result_json.state;
+    render();
+    alert(`${data.record.student_name || '학생'}의 분석 결과를 불러왔습니다.`);
   } catch (err) {
     alert('불러오기 실패: ' + err.message);
   }
 }
-
 function showAdminRecords(records, adminKey) {
   document.getElementById('adminRecordsOverlay')?.remove();
 
