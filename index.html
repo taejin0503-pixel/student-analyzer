@@ -277,16 +277,30 @@ async function fetchFromCloud() {
     return;
   }
 
-  const inputCode = prompt('저장된 고유 식별 코드를 입력하세요:');
+  const inputCode = prompt('저장된 식별 코드 또는 관리자 암호를 입력하세요:');
   if (!inputCode) return;
 
+  const enteredValue = inputCode.trim();
+
   try {
+    // 관리자 암호면 저장된 기록 목록 표시
+    const { data: adminData, error: adminError } =
+      await supabaseClient.functions.invoke('admin-records', {
+        body: { action: 'list', adminKey: enteredValue }
+      });
+
+    if (!adminError && Array.isArray(adminData?.records)) {
+      showAdminRecords(adminData.records, enteredValue);
+      return;
+    }
+
+    // 관리자 암호가 아니면 식별 코드로 결과 조회
     const { data, error } = await supabaseClient.functions.invoke(
       'student-records',
       {
         body: {
           action: 'get',
-          code: inputCode.trim()
+          code: enteredValue
         }
       }
     );
